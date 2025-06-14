@@ -22,15 +22,15 @@ pub fn main() !void {
     }
 
     const test_prog = [_]u8{
-        @intFromEnum(opc.OP_CONST), 2,
+        @intFromEnum(opc.OP_CALL), 0x02, 0x00,
         @intFromEnum(opc.OP_DUMP),
+        @intFromEnum(opc.OP_RET),
+        @intFromEnum(opc.OP_CONST), 0x02,
         @intFromEnum(opc.OP_RET)
     };
 
     var vm = try core.Vm.init(allocator, &test_prog, values.items);
     defer vm.deinit();
-
-    std.debug.print("{s}\n", .{vm.constants[2].data.String});
 
     try vm.run();
 }

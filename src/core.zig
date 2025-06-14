@@ -30,6 +30,7 @@ pub const BinaryOp = enum {
 
 pub const Vm = struct {
     stack: ValueStack = undefined,
+    callstack: stack.Stack(usize),
     pc: usize = 0,
     program: []u8 = undefined,
     
@@ -59,6 +60,7 @@ pub const Vm = struct {
             .allocator = allocator,
             .pc = 0,
             .stack = try ValueStack.init(allocator),
+            .callstack = try stack.Stack(usize).init(allocator),
             .scopes = scopes,
             .current_scope = &scopes.items[0],
             .constants = constbuffer 
@@ -87,6 +89,7 @@ pub const Vm = struct {
         }
 
         self.stack.deinit();
+        self.callstack.deinit();
     }
 
     fn fetch(self: *Vm) !u8 { 
@@ -94,6 +97,12 @@ pub const Vm = struct {
         const x = self.program[self.pc];
         self.pc += 1;
         return x;
+    }
+
+    fn fetchi16(self: *Vm) !i16 {
+        var ret: i16 = try self.fetch();
+        ret |= @as(i16, try self.fetch()) << 8;
+        return ret;
     }
 
     // scope_indx is relative to local scope where the innermost scope is 0 
@@ -140,8 +149,6 @@ pub const Vm = struct {
 
         // TODO: Operations regarding strings
 
-        std.debug.print("Operands {d} {d}\n", .{a.data.Int, b.data.Int});
-
         return Value{
             .allocator = self.allocator,
             .data = switch (op) {
@@ -162,6 +169,13 @@ pub const Vm = struct {
                 else => unreachable
             }
         };
+    }
+
+    fn jump(self: *Vm, offs: i16) !void {
+        var newaddr: isize = @intCast(self.pc);
+        newaddr += @intCast(offs);
+        if (newaddr < 0 or newaddr >= self.program.len) return error.MalformedCode;
+        self.pc = @intCast(newaddr);
     }
 
     pub fn run(self: *Vm) !void {
@@ -188,8 +202,35 @@ pub const Vm = struct {
                 .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, 
                 .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),
 
-                .OP_RET => return,
-                else => return error.MalformedCode 
+                .OP_JMP => try self.jump(try self.fetchi16()),
+                .OP_CALL => {
+                    const offs: i16 = try self.fetchi16();
+                    try self.callstack.push(self.pc);
+                    try self.jump(offs);
+                },
+                .OP_TJMP => {
+                    const offs: i16 = try self.fetchi16();
+                    const x = try self.stack.pop();
+                    defer x.deinit();
+                    if (x.kind() != .Bool) return error.MismatchedTypes;
+                    if (x.data.Bool) try self.jump(offs);
+                },
+                .OP_TCALL => {
+                    const offs: i16 = try self.fetchi16();
+                    const x = try self.stack.pop();
+                    defer x.deinit();
+                    if (x.kind() != .Bool) return error.MismatchedTypes;
+                    if (x.data.Bool) {
+                        try self.callstack.push(self.pc);
+                        try self.jump(offs);
+                    }
+                },
+
+                .OP_RET => {
+                    // Return if there is an address on the callstack, but quit if there is none
+                    self.pc = self.callstack.pop() catch return;
+                },
+                _ => return error.MalformedCode
             }
         }
     }
