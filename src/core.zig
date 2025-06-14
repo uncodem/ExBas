@@ -208,6 +208,23 @@ pub const Vm = struct {
                     try self.callstack.push(self.pc);
                     try self.jump(offs);
                 },
+                .OP_TJMP => {
+                    const offs: i16 = try self.fetchi16();
+                    const x = try self.stack.pop();
+                    defer x.deinit();
+                    if (x.kind() != .Bool) return error.MismatchedTypes;
+                    if (x.data.Bool) try self.jump(offs);
+                },
+                .OP_TCALL => {
+                    const offs: i16 = try self.fetchi16();
+                    const x = try self.stack.pop();
+                    defer x.deinit();
+                    if (x.kind() != .Bool) return error.MismatchedTypes;
+                    if (x.data.Bool) {
+                        try self.callstack.push(self.pc);
+                        try self.jump(offs);
+                    }
+                },
 
                 .OP_RET => {
                     // Return if there is an address on the callstack, but quit if there is none
