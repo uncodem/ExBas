@@ -24,6 +24,7 @@ pub fn main() !void {
     const test_prog = [_]u8{
         @intFromEnum(opc.OP_CONST), 2,
         @intFromEnum(opc.OP_DUMP),
+        @intFromEnum(opc.OP_JMP), 0xff, 0xfA,
         @intFromEnum(opc.OP_RET)
     };
 

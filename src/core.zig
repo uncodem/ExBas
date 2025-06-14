@@ -195,6 +195,14 @@ pub const Vm = struct {
                 .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, 
                 .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),
 
+                .OP_JMP => {
+                    const offs: isize = try self.fetchi16();
+                    var newaddr: usize = self.pc;
+                    if (self.pc < offs or newaddr >= self.program.len) return error.MalformedCode;
+                    if (offs < 0) { newaddr -= @intCast(-offs); } else { newaddr += @intCast(offs); }
+                    self.pc = newaddr;
+                },
+
                 .OP_RET => return,
                 else => return error.MalformedCode 
             }

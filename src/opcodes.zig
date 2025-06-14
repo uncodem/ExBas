@@ -19,6 +19,8 @@ pub const VmOpcode = enum(u8) {
     OP_MORE,
     OP_LESS,
 
+    OP_JMP,
+
     OP_DUMP,
     OP_RET,
     _
