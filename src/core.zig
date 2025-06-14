@@ -96,6 +96,13 @@ pub const Vm = struct {
         return x;
     }
 
+    fn fetchi16(self: *Vm) !i16 {
+        var ret: i16 = try self.fetch();
+        ret <<= 8;
+        ret |= try self.fetch();
+        return ret;
+    }
+
     // scope_indx is relative to local scope where the innermost scope is 0 
     // and scope_indx = n is global scope
 
