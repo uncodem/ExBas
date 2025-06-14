@@ -101,8 +101,7 @@ pub const Vm = struct {
 
     fn fetchi16(self: *Vm) !i16 {
         var ret: i16 = try self.fetch();
-        ret <<= 8;
-        ret |= try self.fetch();
+        ret |= @as(i16, try self.fetch()) << 8;
         return ret;
     }
 
@@ -135,7 +134,6 @@ pub const Vm = struct {
 
         var scope = self.scopes.pop() orelse return error.MalformedCode;
         for (scope.items) |item| {
-            item.dump();
             item.deinit();
         }
         scope.deinit();
@@ -150,8 +148,6 @@ pub const Vm = struct {
         if (a.kind() != .Int or b.kind() != .Int) return error.MismatchedTypes;
 
         // TODO: Operations regarding strings
-
-        std.debug.print("Operands {d} {d}\n", .{a.data.Int, b.data.Int});
 
         return Value{
             .allocator = self.allocator,
@@ -177,7 +173,7 @@ pub const Vm = struct {
 
     fn jump(self: *Vm, offs: i16) !void {
         var newaddr: isize = @intCast(self.pc);
-        if (offs < 0) { newaddr -= @intCast(-offs); } else { newaddr += @intCast(offs); }
+        newaddr += @intCast(offs);
         if (newaddr < 0 or newaddr >= self.program.len) return error.MalformedCode;
         self.pc = @intCast(newaddr);
     }
@@ -217,7 +213,7 @@ pub const Vm = struct {
                     // Return if there is an address on the callstack, but quit if there is none
                     self.pc = self.callstack.pop() catch return;
                 },
-                else => return error.MalformedCode 
+                _ => return error.MalformedCode
             }
         }
     }

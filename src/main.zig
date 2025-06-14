@@ -22,7 +22,7 @@ pub fn main() !void {
     }
 
     const test_prog = [_]u8{
-        @intFromEnum(opc.OP_CALL), 0x00, 0x02,
+        @intFromEnum(opc.OP_CALL), 0x02, 0x00,
         @intFromEnum(opc.OP_DUMP),
         @intFromEnum(opc.OP_RET),
         @intFromEnum(opc.OP_CONST), 0x02,
