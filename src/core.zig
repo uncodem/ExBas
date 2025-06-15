@@ -119,6 +119,18 @@ pub const Vm = struct {
         return &scope.items[indx];
     }
 
+    pub fn setvar(self: *Vm, v: *Value, scope_indx: u8, indx: u8) !void {
+        if (scope_indx >= self.scopes.items.len) return error.MalformedCode;
+
+        var scope = self.current_scope;
+
+        if (scope_indx != 0) scope = &self.scopes.items[self.scopes.items.len-scope_indx-1]; 
+        if (indx >= scope.items.len) return error.UndefinedVariable;
+
+        self.release(scope.items[indx]);
+        scope.items[indx] = v;
+    }
+
     fn pop(self: *Vm) !Value {
         return try (try self.stack.pop()).copy();
     }
@@ -176,6 +188,10 @@ pub const Vm = struct {
         newaddr += @intCast(offs);
         if (newaddr < 0 or newaddr >= self.program.len) return error.MalformedCode;
         self.pc = @intCast(newaddr);
+    }
+
+    fn release(self: *Vm, x: *Value) void {
+        if (x.release()) self.allocator.free(x);
     }
 
     pub fn run(self: *Vm) !void {

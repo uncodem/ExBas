@@ -27,16 +27,19 @@ pub const Value = struct {
     pub fn copy(self: Value) !Value {
         return switch(self.data) {
             .Int => Value{
+                .refcount = 1,
                 .allocator = self.allocator,
                 .data = .{ .Int = self.data.Int },
                 .size = self.size,
             },
             .Bool => Value{
+                .refcount = 1,
                 .allocator = self.allocator,
                 .data = .{ .Bool = self.data.Bool },
                 .size = self.size
             },
             .String => Value{
+                .refcount = 1,
                 .size = self.size,
                 .allocator = self.allocator,
                 .data = .{ .String = blk: {
@@ -46,6 +49,13 @@ pub const Value = struct {
                 }}
             }
         };
+    }
+
+    pub fn alloc_copy(self: Value, allocator: std.mem.Allocator) !*Value {
+        const ret: *Value = try allocator.create(Value);
+        ret.* = try self.copy();
+        ret.allocator = allocator;
+        return ret;
     }
 
     pub fn dump(self: Value) void {
@@ -64,6 +74,19 @@ pub const Value = struct {
             .Int, .Bool => {},
             .String => self.allocator.free(self.data.String)
         };
+    }
+
+    pub fn release(self: *Value) bool {
+        if (self.refcount == 0) unreachable;
+
+        self.refcount -= 1;
+
+        if (self.refcount == 0) {
+            self.deinit();
+            return true;
+        }
+
+        return false;
     }
 
     pub fn kind(self: Value) ValueType {
@@ -99,7 +122,7 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
 
         .String => strblk: {
             const endIndx = std.mem.indexOfScalar(u8, val_data, 0) orelse return error.InvalidData;
-            const strslice = byte_data[0..endIndx];
+            const strslice = val_data[0..endIndx];
             const buffer = try allocator.alloc(u8, strslice.len);
             std.mem.copyForwards(u8, buffer, strslice);
             break :strblk Value{
