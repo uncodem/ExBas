@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const VmOpcode = enum(u8) {
     OP_CONST = 0,
+    OP_COPY,
 
     OP_STARTSCOPE,
     OP_ENDSCOPE,

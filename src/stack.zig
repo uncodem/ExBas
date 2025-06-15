@@ -32,7 +32,7 @@ pub fn Stack(comptime T: type) type {
             this.sp += 1;
         }
 
-        pub fn top(this: Self) ?T {
+        pub fn top(this: *Self) ?T {
             if (this.sp == 0) return null;
             return this.data[this.sp-1];
         }

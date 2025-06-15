@@ -210,6 +210,7 @@ pub const Vm = struct {
                 },
 
                 .OP_CONST => try self.stack.push(try self.constants[try self.fetch()].alloc_copy(self.allocator)),
+                .OP_COPY => try self.stack.push(try self.stack.top().?.alloc_copy(self.allocator)),
 
                 .OP_STARTSCOPE => try self.new_scope(),
                 .OP_ENDSCOPE => try self.deinit_scope(),
