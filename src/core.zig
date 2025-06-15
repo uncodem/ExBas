@@ -4,11 +4,12 @@ const stack = @import("stack.zig");
 const opcodes = @import("opcodes.zig");
 
 const Value = vals.Value;
-const Scope = std.ArrayList(Value);
+const Scope = std.ArrayList(*Value);
+
 const Stack = stack.Stack;
 const VmOpcode = opcodes.VmOpcode;
 
-const ValueStack = Stack(Value);
+const ValueStack = Stack(*Value);
 
 pub const VmError = error {
     InvalidOpcode,
@@ -76,16 +77,18 @@ pub const Vm = struct {
 
         self.allocator.free(self.constants);
 
-        for (self.scopes.items) |*scope| {
-            for (scope.items) |*variable| {
+        for (self.scopes.items) |scope| {
+            for (scope.items) |variable| {
                 variable.deinit();
+                self.allocator.destroy(variable);
             }
             scope.deinit();
         }
         self.scopes.deinit();
 
-        for (self.stack.data[0..self.stack.sp]) |*item| {
+        for (self.stack.data[0..self.stack.sp]) |item| {
             item.deinit();
+            self.allocator.destroy(item);
         }
 
         self.stack.deinit();
@@ -116,7 +119,7 @@ pub const Vm = struct {
         if (scope_indx != 0) scope = &self.scopes.items[self.scopes.items.len-scope_indx-1]; 
         if (indx >= scope.items.len) return error.UndefinedVariable;
 
-        return &scope.items[indx];
+        return scope.items[indx];
     }
 
     pub fn setvar(self: *Vm, v: *Value, scope_indx: u8, indx: u8) !void {
@@ -131,8 +134,8 @@ pub const Vm = struct {
         scope.items[indx] = v;
     }
 
-    fn pop(self: *Vm) !Value {
-        return try (try self.stack.pop()).copy();
+    fn pop(self: *Vm) !*Value {
+        return try self.stack.pop();
     }
 
     fn new_scope(self: *Vm) !void {
@@ -146,22 +149,22 @@ pub const Vm = struct {
 
         var scope = self.scopes.pop() orelse return error.MalformedCode;
         for (scope.items) |item| {
-            item.deinit();
+            self.release(item);
         }
         scope.deinit();
         self.current_scope = &self.scopes.items[self.scopes.items.len-1];
     }
 
-    fn binOp(self: *Vm, op: VmOpcode) !Value {
-        const b = try self.stack.pop();
-        const a = try self.stack.pop();
-        defer { b.deinit(); a.deinit(); }
+    fn binOp(self: *Vm, op: VmOpcode) !*Value {
+        const b = try self.pop();
+        const a = try self.pop();
+        defer { self.release(b); self.release(a); }
 
         if (a.kind() != .Int or b.kind() != .Int) return error.MismatchedTypes;
 
         // TODO: Operations regarding strings
 
-        return Value{
+        const ret = Value{
             .allocator = self.allocator,
             .data = switch (op) {
                 .OP_ADD => .{ .Int = (a.data.Int + b.data.Int) },
@@ -181,6 +184,8 @@ pub const Vm = struct {
                 else => unreachable
             }
         };
+
+        return ret.alloc_copy(self.allocator);
     }
 
     fn jump(self: *Vm, offs: i16) !void {
@@ -191,7 +196,7 @@ pub const Vm = struct {
     }
 
     fn release(self: *Vm, x: *Value) void {
-        if (x.release()) self.allocator.free(x);
+        if (x.release()) self.allocator.destroy(x);
     }
 
     pub fn run(self: *Vm) !void {
@@ -199,22 +204,29 @@ pub const Vm = struct {
             const opc: VmOpcode = @enumFromInt(try self.fetch());
             switch (opc) {
                 .OP_DUMP => { 
-                    var x = try self.stack.pop();
-                    defer x.deinit();
+                    var x = try self.pop();
+                    defer self.release(x);
                     x.dump();
                 },
-                .OP_CONST => try self.stack.push(try self.constants[try self.fetch()].copy()),
+
+                .OP_CONST => try self.stack.push(try self.constants[try self.fetch()].alloc_copy(self.allocator)),
 
                 .OP_STARTSCOPE => try self.new_scope(),
                 .OP_ENDSCOPE => try self.deinit_scope(),
 
-                .OP_DEFVAR => try self.current_scope.append(try self.pop()),
-                .OP_PUSHVAR => try self.stack.push(try (try self.getvar(try self.fetch(), try self.fetch())).copy()),
-                .OP_POPVAR => {
-                    var val = try self.getvar(try self.fetch(), try self.fetch());
-                    val.deinit();
-                    val.* = try self.pop();
+                .OP_DEFVAR => { 
+                    // We do not touch refcount here as popping and adding it to scope would cancel out
+                    try self.current_scope.append(try self.pop());
                 },
+
+                .OP_PUSHVAR => { 
+                    const v = try self.getvar(try self.fetch(), try self.fetch());
+                    v.refcount += 1;
+                    try self.stack.push(v);
+                },
+
+                .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
+
                 .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, 
                 .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),
 
@@ -227,14 +239,14 @@ pub const Vm = struct {
                 .OP_TJMP => {
                     const offs: i16 = try self.fetchi16();
                     const x = try self.stack.pop();
-                    defer x.deinit();
+                    defer self.release(x);
                     if (x.kind() != .Bool) return error.MismatchedTypes;
                     if (x.data.Bool) try self.jump(offs);
                 },
                 .OP_TCALL => {
                     const offs: i16 = try self.fetchi16();
                     const x = try self.stack.pop();
-                    defer x.deinit();
+                    defer self.release(x);
                     if (x.kind() != .Bool) return error.MismatchedTypes;
                     if (x.data.Bool) {
                         try self.callstack.push(self.pc);
