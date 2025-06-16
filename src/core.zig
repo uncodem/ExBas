@@ -25,7 +25,8 @@ pub const Vm = struct {
     stack: ValueStack = undefined,
     callstack: stack.Stack(usize),
     pc: usize = 0,
-    program: Program = undefined,
+
+    program: *const Program = undefined,
     
     current_scope: *Scope = undefined,
     scopes: std.ArrayList(Scope) = undefined,
@@ -34,7 +35,7 @@ pub const Vm = struct {
 
     allocator: std.mem.Allocator = undefined,
     
-    pub fn init(allocator: std.mem.Allocator, program: Program) !Vm {
+    pub fn init(allocator: std.mem.Allocator, program: *const Program) !Vm {
         var scopes = std.ArrayList(Scope).init(allocator);
 
         // Initialize global scope

@@ -25,7 +25,7 @@ pub fn main() !void {
     const prog = try loader.Program.init(allocator, &byte_data, &test_prog);
     defer prog.deinit();
 
-    var vm = try core.Vm.init(allocator, prog);
+    var vm = try core.Vm.init(allocator, &prog);
     defer vm.deinit();
 
     try vm.run();
