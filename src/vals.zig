@@ -151,6 +151,7 @@ test "src/vals.zig readValue" {
 
     try expect(strvalue.kind() == .String);
     try expect(strvalue.data.String.len == 3 and strvalue.size == 3);
+    try expect(std.mem.eql(u8, strvalue.data.String, "ABC"));
 
     // IntValue(65)
     const intbyte_data = [_]u8{0, 0x41, 0x00, 0x00, 0x00};
@@ -170,10 +171,17 @@ test "src/vals.zig readValue" {
     try expect(boolvalue.size == 1);
     try expect(!boolvalue.data.Bool);
 
+    const floatbyte_data = [_]u8{3,86,14,73,64};
+    const floatvalue = try readValue(std.testing.allocator, &floatbyte_data);
+    defer floatvalue.deinit();
+
+    try expect(floatvalue.kind() == .Float);
+    try expect(floatvalue.size == 4);
+    try expect(floatvalue.data.Float == 3.1415);
 }
 
 test "src/vals.zig readValues" {
-    const byte_data = [_]u8{0, 0x42, 0x00, 0x00, 0x00, 2, 0x01, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00};
+    const byte_data = [_]u8{0, 0x42, 0x00, 0x00, 0x00, 2, 0x01, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00, 3,86,14,73,64};
     const values = try readValues(std.testing.allocator, &byte_data);
     defer {
         for (values.items) |value| {
@@ -181,7 +189,7 @@ test "src/vals.zig readValues" {
         }
         values.deinit();
     }
-    try expect(values.items.len == 3);
+    try expect(values.items.len == 4);
 }
 
 
