@@ -1,3 +1,4 @@
+
 const std = @import("std");
 const expect = std.testing.expect;
 
@@ -11,6 +12,7 @@ pub const ValueType = enum(u8) {
     Int = 0,
     String,
     Bool,
+    Float,
     _
 };
 
@@ -20,29 +22,21 @@ pub const Value = struct {
     data: union(ValueType) {
         Int: i32,
         String: []u8,
-        Bool: bool
+        Bool: bool,
+        Float: f64
     },
     allocator: std.mem.Allocator = undefined,
 
     pub fn copy(self: Value) !Value {
-        return switch(self.data) {
-            .Int => Value{
-                .refcount = 1,
-                .allocator = self.allocator,
-                .data = .{ .Int = self.data.Int },
-                .size = self.size,
-            },
-            .Bool => Value{
-                .refcount = 1,
-                .allocator = self.allocator,
-                .data = .{ .Bool = self.data.Bool },
-                .size = self.size
-            },
-            .String => Value{
-                .refcount = 1,
-                .size = self.size,
-                .allocator = self.allocator,
-                .data = .{ .String = blk: {
+        return Value{
+            .refcount = 1,
+            .allocator = self.allocator,
+            .size = self.size,
+            .data = switch(self.data) {
+                .Int => .{ .Int = self.data.Int },
+                .Bool => .{ .Bool = self.data.Bool },
+                .Float => .{ .Float = self.data.Float },
+                .String => .{ .String = blk: {
                     const buffer = try self.allocator.alloc(u8, self.size);
                     std.mem.copyForwards(u8, buffer, self.data.String);
                     break :blk buffer;
@@ -62,6 +56,7 @@ pub const Value = struct {
         switch (self.data) {
             .String => |x| std.debug.print("StrValue({s})\n", .{x}),
             .Int => |x| std.debug.print("IntValue({d})\n", .{x}),
+            .Float => |x| std.debug.print("FloatValue({d})\n", .{x}),
             .Bool => |x| { 
                 const ch: u8 = if (x) 'T' else 'F';
                 std.debug.print("BoolValue({c})\n", .{ ch });
@@ -71,7 +66,7 @@ pub const Value = struct {
 
     pub fn deinit(self: Value) void {
         return switch(self.data) {
-            .Int, .Bool => {},
+            .Int, .Bool, .Float => {},
             .String => self.allocator.free(self.data.String)
         };
     }
@@ -103,7 +98,7 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
 
     return switch(ret_type) {
         .Int => intblk: {
-            if (byte_data.len < 5) return error.InvalidData;
+            if (val_data.len < 4) return error.InvalidData;
             const val = std.mem.readInt(i32, val_data[0..4], .little);
             break :intblk Value{
                 .allocator = allocator,
@@ -111,6 +106,17 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
                 .refcount = 0,
                 .data = .{ .Int = val },
             };         
+        },
+
+        .Float => fltblk: {
+            if (val_data.len < 8) return error.InvalidData;
+            const val = std.mem.readInt(i64, val_data[0..8], .big);
+            break :fltblk Value{
+                .allocator = allocator,
+                .size = 8,
+                .refcount = 0,
+                .data = .{ .Float = @bitCast(val) }
+            };
         },
 
         .Bool => Value{
@@ -193,4 +199,5 @@ test "src/vals.zig readValues" {
     }
     try expect(values.items.len == 3);
 }
+
 
