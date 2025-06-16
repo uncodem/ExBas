@@ -1,7 +1,5 @@
-
 const std = @import("std");
 const expect = std.testing.expect;
-
 
 pub const ValueError = error {
     InvalidData,
@@ -23,8 +21,8 @@ pub const Value = struct {
         Int: i32,
         String: []u8,
         Bool: bool,
-        Float: f64
-    },
+        Float: f32
+    } = undefined,
     allocator: std.mem.Allocator = undefined,
 
     pub fn copy(self: Value) !Value {
@@ -96,51 +94,37 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
     const ret_type: ValueType = @enumFromInt(byte_data[0]);
     const val_data = byte_data[1..];
 
-    return switch(ret_type) {
-        .Int => intblk: {
-            if (val_data.len < 4) return error.InvalidData;
-            const val = std.mem.readInt(i32, val_data[0..4], .little);
-            break :intblk Value{
-                .allocator = allocator,
-                .size = 4,
-                .refcount = 0,
-                .data = .{ .Int = val },
-            };         
-        },
+    const valsize: usize = switch(ret_type) {
+        .Int, .Float => 4,
+        .Bool => 1,
+        .String => 0, // Zero due to it being dependent on data
+        _ => return error.InvalidDataType
+    };
 
-        .Float => fltblk: {
-            if (val_data.len < 8) return error.InvalidData;
-            const val = std.mem.readInt(i64, val_data[0..8], .big);
-            break :fltblk Value{
-                .allocator = allocator,
-                .size = 8,
-                .refcount = 0,
-                .data = .{ .Float = @bitCast(val) }
-            };
-        },
+    var ret = Value{
+        .allocator = allocator,
+        .size = valsize,
+        .refcount = 0
+    };
 
-        .Bool => Value{
-            .allocator = allocator,
-            .size = 1,
-            .refcount = 0,
-            .data = .{ .Bool = (byte_data[1] == 1) }
-        },
+    if (ret_type != .String and val_data.len < valsize) return error.InvalidData;
 
-        .String => strblk: {
+    ret.data = switch (ret_type) {
+        .Int => .{ .Int = std.mem.readInt(i32, val_data[0..4], .little) },
+        .Float => .{ .Float = @bitCast(std.mem.readInt(i32, val_data[0..4], .little)) },
+        .Bool => .{ .Bool = (val_data[0] == 1) },
+        .String => .{ .String = strblk: {
             const endIndx = std.mem.indexOfScalar(u8, val_data, 0) orelse return error.InvalidData;
             const strslice = val_data[0..endIndx];
             const buffer = try allocator.alloc(u8, strslice.len);
             std.mem.copyForwards(u8, buffer, strslice);
-            break :strblk Value{
-                .allocator = allocator,
-                .size = buffer.len,
-                .data = .{ .String = buffer },
-                .refcount = 0
-            };
-        },
-
-        _ => return error.InvalidDataType
+            ret.size = strslice.len;
+            break :strblk buffer;
+        }},
+        _ => unreachable
     };
+
+    return ret;
 }
 
 pub fn readValues(allocator: std.mem.Allocator, byte_data: []const u8) !std.ArrayList(Value) {
@@ -199,5 +183,6 @@ test "src/vals.zig readValues" {
     }
     try expect(values.items.len == 3);
 }
+
 
 
