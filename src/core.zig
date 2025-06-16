@@ -18,17 +18,6 @@ pub const VmError = error {
     MalformedCode
 };
 
-pub const BinaryOp = enum {
-    Add,
-    Sub,
-    Mult,
-    Div,
-    Eql,
-    NotEql,
-    More,
-    Less
-};
-
 pub const Vm = struct {
     stack: ValueStack = undefined,
     callstack: stack.Stack(usize),
