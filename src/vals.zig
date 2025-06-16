@@ -1,7 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
 
-
 pub const ValueError = error {
     InvalidData,
     InvalidDataType
@@ -11,6 +10,7 @@ pub const ValueType = enum(u8) {
     Int = 0,
     String,
     Bool,
+    Float,
     _
 };
 
@@ -20,29 +20,21 @@ pub const Value = struct {
     data: union(ValueType) {
         Int: i32,
         String: []u8,
-        Bool: bool
-    },
+        Bool: bool,
+        Float: f32
+    } = undefined,
     allocator: std.mem.Allocator = undefined,
 
     pub fn copy(self: Value) !Value {
-        return switch(self.data) {
-            .Int => Value{
-                .refcount = 1,
-                .allocator = self.allocator,
-                .data = .{ .Int = self.data.Int },
-                .size = self.size,
-            },
-            .Bool => Value{
-                .refcount = 1,
-                .allocator = self.allocator,
-                .data = .{ .Bool = self.data.Bool },
-                .size = self.size
-            },
-            .String => Value{
-                .refcount = 1,
-                .size = self.size,
-                .allocator = self.allocator,
-                .data = .{ .String = blk: {
+        return Value{
+            .refcount = 1,
+            .allocator = self.allocator,
+            .size = self.size,
+            .data = switch(self.data) {
+                .Int => .{ .Int = self.data.Int },
+                .Bool => .{ .Bool = self.data.Bool },
+                .Float => .{ .Float = self.data.Float },
+                .String => .{ .String = blk: {
                     const buffer = try self.allocator.alloc(u8, self.size);
                     std.mem.copyForwards(u8, buffer, self.data.String);
                     break :blk buffer;
@@ -62,6 +54,7 @@ pub const Value = struct {
         switch (self.data) {
             .String => |x| std.debug.print("StrValue({s})\n", .{x}),
             .Int => |x| std.debug.print("IntValue({d})\n", .{x}),
+            .Float => |x| std.debug.print("FloatValue({d})\n", .{x}),
             .Bool => |x| { 
                 const ch: u8 = if (x) 'T' else 'F';
                 std.debug.print("BoolValue({c})\n", .{ ch });
@@ -71,7 +64,7 @@ pub const Value = struct {
 
     pub fn deinit(self: Value) void {
         return switch(self.data) {
-            .Int, .Bool => {},
+            .Int, .Bool, .Float => {},
             .String => self.allocator.free(self.data.String)
         };
     }
@@ -98,43 +91,40 @@ pub const Value = struct {
 pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
     if (byte_data.len < 1) return error.InvalidData;
 
-    const ret_type: ValueType = @enumFromInt(byte_data[0]);
+    const ret_type: ValueType = std.meta.intToEnum(ValueType, byte_data[0]) catch return error.InvalidDataType;
     const val_data = byte_data[1..];
 
-    return switch(ret_type) {
-        .Int => intblk: {
-            if (byte_data.len < 5) return error.InvalidData;
-            const val = std.mem.readInt(i32, val_data[0..4], .little);
-            break :intblk Value{
-                .allocator = allocator,
-                .size = 4,
-                .refcount = 0,
-                .data = .{ .Int = val },
-            };         
-        },
+    const valsize: usize = switch(ret_type) {
+        .Int, .Float => 4,
+        .Bool => 1,
+        .String => 0, // Zero due to it being dependent on data
+        _ => return error.InvalidDataType
+    };
 
-        .Bool => Value{
-            .allocator = allocator,
-            .size = 1,
-            .refcount = 0,
-            .data = .{ .Bool = (byte_data[1] == 1) }
-        },
+    var ret = Value{
+        .allocator = allocator,
+        .size = valsize,
+        .refcount = 0
+    };
 
-        .String => strblk: {
+    if (ret_type != .String and val_data.len < valsize) return error.InvalidData;
+
+    ret.data = switch (ret_type) {
+        .Int => .{ .Int = std.mem.readInt(i32, val_data[0..4], .little) },
+        .Float => .{ .Float = @bitCast(std.mem.readInt(i32, val_data[0..4], .little)) },
+        .Bool => .{ .Bool = (val_data[0] == 1) },
+        .String => .{ .String = strblk: {
             const endIndx = std.mem.indexOfScalar(u8, val_data, 0) orelse return error.InvalidData;
             const strslice = val_data[0..endIndx];
             const buffer = try allocator.alloc(u8, strslice.len);
             std.mem.copyForwards(u8, buffer, strslice);
-            break :strblk Value{
-                .allocator = allocator,
-                .size = buffer.len,
-                .data = .{ .String = buffer },
-                .refcount = 0
-            };
-        },
-
-        _ => return error.InvalidDataType
+            ret.size = strslice.len;
+            break :strblk buffer;
+        }},
+        _ => unreachable
     };
+
+    return ret;
 }
 
 pub fn readValues(allocator: std.mem.Allocator, byte_data: []const u8) !std.ArrayList(Value) {
@@ -161,6 +151,7 @@ test "src/vals.zig readValue" {
 
     try expect(strvalue.kind() == .String);
     try expect(strvalue.data.String.len == 3 and strvalue.size == 3);
+    try expect(std.mem.eql(u8, strvalue.data.String, "ABC"));
 
     // IntValue(65)
     const intbyte_data = [_]u8{0, 0x41, 0x00, 0x00, 0x00};
@@ -180,10 +171,17 @@ test "src/vals.zig readValue" {
     try expect(boolvalue.size == 1);
     try expect(!boolvalue.data.Bool);
 
+    const floatbyte_data = [_]u8{3,86,14,73,64};
+    const floatvalue = try readValue(std.testing.allocator, &floatbyte_data);
+    defer floatvalue.deinit();
+
+    try expect(floatvalue.kind() == .Float);
+    try expect(floatvalue.size == 4);
+    try expect(floatvalue.data.Float == 3.1415);
 }
 
 test "src/vals.zig readValues" {
-    const byte_data = [_]u8{0, 0x42, 0x00, 0x00, 0x00, 2, 0x01, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00};
+    const byte_data = [_]u8{0, 0x42, 0x00, 0x00, 0x00, 2, 0x01, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00, 3,86,14,73,64};
     const values = try readValues(std.testing.allocator, &byte_data);
     defer {
         for (values.items) |value| {
@@ -191,6 +189,8 @@ test "src/vals.zig readValues" {
         }
         values.deinit();
     }
-    try expect(values.items.len == 3);
+    try expect(values.items.len == 4);
 }
+
+
 
