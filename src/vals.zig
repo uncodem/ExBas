@@ -91,7 +91,7 @@ pub const Value = struct {
 pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
     if (byte_data.len < 1) return error.InvalidData;
 
-    const ret_type: ValueType = @enumFromInt(byte_data[0]);
+    const ret_type: ValueType = std.meta.intToEnum(ValueType, byte_data[0]) catch return error.InvalidDataType;
     const val_data = byte_data[1..];
 
     const valsize: usize = switch(ret_type) {
