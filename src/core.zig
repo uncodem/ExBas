@@ -4,6 +4,8 @@ const stack = @import("stack.zig");
 const opcodes = @import("opcodes.zig");
 const loader = @import("loader.zig");
 
+const Program = loader.Program;
+
 const Value = vals.Value;
 const Scope = std.ArrayList(*Value);
 
@@ -23,50 +25,34 @@ pub const Vm = struct {
     stack: ValueStack = undefined,
     callstack: stack.Stack(usize),
     pc: usize = 0,
-    program: []u8 = undefined,
+    program: Program = undefined,
     
     current_scope: *Scope = undefined,
     scopes: std.ArrayList(Scope) = undefined,
 
-    constants: []Value = undefined,
+    constants: []const Value = undefined,
 
     allocator: std.mem.Allocator = undefined,
     
-    pub fn init(allocator: std.mem.Allocator, program: []const u8, constants: []const Value) !Vm {
-        const data = try allocator.alloc(u8, program.len);
-        std.mem.copyForwards(u8, data, program);
-
-        const constbuffer = try allocator.alloc(Value, constants.len);
-        for (constbuffer, constants) |*x, constant| {
-            x.* = try constant.copy();
-        }
-
+    pub fn init(allocator: std.mem.Allocator, program: Program) !Vm {
         var scopes = std.ArrayList(Scope).init(allocator);
 
         // Initialize global scope
         try scopes.append(Scope.init(allocator));
 
         return Vm{
-            .program = data,
+            .program = program,
             .allocator = allocator,
             .pc = 0,
             .stack = try ValueStack.init(allocator),
             .callstack = try stack.Stack(usize).init(allocator),
             .scopes = scopes,
             .current_scope = &scopes.items[0],
-            .constants = constbuffer 
+            .constants = program.constants.items
         };
     }
 
     pub fn deinit(self: *Vm) void {
-        self.allocator.free(self.program);
-
-        for (self.constants) |*constant| {
-            constant.deinit();
-        }
-
-        self.allocator.free(self.constants);
-
         for (self.scopes.items) |scope| {
             for (scope.items) |variable| {
                 variable.deinit();
@@ -86,8 +72,8 @@ pub const Vm = struct {
     }
 
     fn fetch(self: *Vm) !u8 { 
-        if (self.pc >= self.program.len) return error.MalformedCode;
-        const x = self.program[self.pc];
+        if (self.pc >= self.program.code.len) return error.MalformedCode;
+        const x = self.program.code[self.pc];
         self.pc += 1;
         return x;
     }
@@ -181,7 +167,7 @@ pub const Vm = struct {
     fn jump(self: *Vm, offs: i16) !void {
         var newaddr: isize = @intCast(self.pc);
         newaddr += @intCast(offs);
-        if (newaddr < 0 or newaddr >= self.program.len) return error.MalformedCode;
+        if (newaddr < 0 or newaddr >= self.program.code.len) return error.MalformedCode;
         self.pc = @intCast(newaddr);
     }
 

@@ -1,6 +1,7 @@
 const std = @import("std");
 const vals = @import("vals.zig");
 const core = @import("core.zig");
+const loader = @import("loader.zig");
 const opcodes = @import("opcodes.zig");
 
 const opc = opcodes.VmOpcode;
@@ -13,14 +14,6 @@ pub fn main() !void {
 
     const byte_data = [_]u8{0, 36, 0x00, 0x00, 0x00, 0, 33, 0x00, 0x00, 0x00, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00};
 
-    var values = try vals.readValues(allocator, &byte_data);
-    defer {
-        for (values.items) |val| {
-            val.deinit();
-        }
-        values.deinit();
-    }
-
     const test_prog = [_]u8{
         @intFromEnum(opc.OP_CONST), 0,
         @intFromEnum(opc.OP_CONST), 1,
@@ -29,7 +22,10 @@ pub fn main() !void {
         @intFromEnum(opc.OP_RET)
     };
 
-    var vm = try core.Vm.init(allocator, &test_prog, values.items);
+    const prog = try loader.Program.init(allocator, &byte_data, &test_prog);
+    defer prog.deinit();
+
+    var vm = try core.Vm.init(allocator, prog);
     defer vm.deinit();
 
     try vm.run();
