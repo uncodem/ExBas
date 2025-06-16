@@ -13,8 +13,23 @@ pub const Program = struct {
     code: []u8 = undefined,
     constants: std.ArrayList(Value) = undefined,
 
+    pub fn init(allocator: std.mem.Allocator, const_data: []const u8, code_data: []const u8) !Program {
+        return Program{
+            .allocator = allocator,
+            .constants = try vals.readValues(allocator, const_data),
+            .code = codeblk: {
+                const progcode = try allocator.alloc(u8, code_data.len);
+                std.mem.copyForwards(u8, progcode, code_data);
+                break :codeblk progcode;
+            },
+        };
+    }
+
     pub fn deinit(self: Program) void {
-        self.code.deinit();
+        self.allocator.free(self.code);
+        for (self.constants.items) |constant| {
+            constant.deinit();
+        }
         self.constants.deinit();
     }
 };
