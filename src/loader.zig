@@ -50,7 +50,7 @@ pub fn readFile(allocator: std.mem.Allocator, fname: []const u8) !Program {
 
     if (magic_test != MAGIC_NUMBER) return error.InvalidProgram;
     
-    const codesize = try reader.readInt(usize, .little) catch return error.MalformedProgramFile;
+    const codesize: usize = try reader.readInt(u32, .little) catch return error.MalformedProgramFile;
     ret.code = try allocator.alloc(u8, codesize);
     errdefer allocator.free(ret.code);
 

@@ -1,5 +1,4 @@
 const std = @import("std");
-const vals = @import("vals.zig");
 const core = @import("core.zig");
 const loader = @import("loader.zig");
 const opcodes = @import("opcodes.zig");
