@@ -2,6 +2,7 @@ const std = @import("std");
 const vals = @import("vals.zig");
 const stack = @import("stack.zig");
 const opcodes = @import("opcodes.zig");
+const loader = @import("loader.zig");
 
 const Value = vals.Value;
 const Scope = std.ArrayList(*Value);
