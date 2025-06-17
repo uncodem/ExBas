@@ -1,11 +1,12 @@
 const std = @import("std");
 const vals = @import("vals.zig");
 
+const expect = std.testing.expect;
+
 const Value = vals.Value;
 
 pub const LoaderError = error {
     InvalidProgram,
-    MalformedProgramFile
 };
 
 pub const Program = struct {
@@ -35,27 +36,29 @@ pub const Program = struct {
 };
 
 pub const MAGIC_NUMBER = 0xdeadbeef;
-pub const MAX_SIZE = 1e7;
+pub const MAX_SIZE: comptime_int = 1e7;
 
-pub fn readReader(allocator: std.mem.Allocator, reader: std.io.Reader) !Program {
+pub fn readReader(allocator: std.mem.Allocator, reader: anytype) !Program {
     var ret = Program{
         .allocator = allocator
     };
 
-    const magic_test = try reader.readInt(u32, .little) catch return error.InvalidProgram;
+    const magic_test = try reader.readInt(u32, .little);
 
     if (magic_test != MAGIC_NUMBER) return error.InvalidProgram;
     
-    const codesize: usize = try reader.readInt(u32, .little) catch return error.MalformedProgramFile;
+    const codesize: usize = @intCast(try reader.readInt(u32, .little));
+    if (codesize == 0 or codesize > MAX_SIZE) return error.InvalidProgram;
+
     ret.code = try allocator.alloc(u8, codesize);
     errdefer allocator.free(ret.code);
 
     if (codesize != try reader.readAll(ret.code)) return error.InvalidProgram;
 
-    const values = try reader.readAllAlloc(allocator, MAX_SIZE);
-    defer allocator.free(values);
+    const const_bytes = try reader.readAllAlloc(allocator, MAX_SIZE - codesize);
+    defer allocator.free(const_bytes);
     
-    ret.constants = try vals.readValues(allocator, values);
+    ret.constants = try vals.readValues(allocator, const_bytes);
 
     return ret;
 }
@@ -67,5 +70,98 @@ pub fn readFile(allocator: std.mem.Allocator, fname: []const u8) !Program {
     const reader = file.reader();
 
     return readReader(allocator, reader);
+}
+
+test "src/loader.zig Program.init" {
+    // Test code is
+    // OP_CONST 0
+    // OP_DUMP
+    // OP_RET
+    
+    const opcodes = @import("opcodes.zig");
+    const opc = opcodes.VmOpcode;
+
+    const code = [_]u8{
+         @intFromEnum(opc.OP_CONST), 0,
+         @intFromEnum(opc.OP_DUMP), 
+         @intFromEnum(opc.OP_RET)
+    };
+
+    // String("ABC")
+    const const_data = [_]u8{1, 0x41, 0x42, 0x43, 0x00};
+
+    const prog = try Program.init(std.testing.allocator, &const_data, &code);
+    defer prog.deinit();
+
+    try expect(prog.code.len == code.len);
+    try expect(prog.constants.items.len == 1);
+}
+
+test "src/loader.zig readReader" {
+    const opcodes = @import("opcodes.zig");
+    const opc = opcodes.VmOpcode;
+
+    const progdata = [_]u8{
+        0xef, 0xbe, 0xad, 0xde, // Magic number
+        0x04, 0x00, 0x00, 0x00, // Codesize
+        @intFromEnum(opc.OP_CONST), 0,
+        @intFromEnum(opc.OP_DUMP),
+        @intFromEnum(opc.OP_RET), // End code chunk
+        1, 0x41, 0x42, 0x43, 0x00, // Start const chunk; String("ABC")
+    };
+
+    var bufstream = std.io.fixedBufferStream(&progdata);
+    const prog = try readReader(std.testing.allocator, bufstream.reader());
+    defer prog.deinit();
+    try expect(prog.code.len == 4);
+    try expect(prog.constants.items.len == 1);
+}
+
+test "src/loader.zig malformed magic number readReader" {
+    const badmagic = [_]u8{
+        0xef, 0xed, 0xd0, 0xde, // Bad Magic number
+    };
+
+    var bufstream = std.io.fixedBufferStream(&badmagic);
+    const result = readReader(std.testing.allocator, bufstream.reader());
+    
+    try std.testing.expectError(error.InvalidProgram, result);
+
+}
+
+test "src/loader.zig malformed program readReader" {
+    const badcodesize = [_]u8{
+        0xef, 0xbe, 0xad, 0xde, // Magic number
+        0x04, 0x00, 0x00, 0x00, 
+        0x00, 0x00 // invalid program
+    };
+
+    var bufstream = std.io.fixedBufferStream(&badcodesize);
+    const result = readReader(std.testing.allocator, bufstream.reader());
+
+    try std.testing.expectError(error.InvalidProgram, result);
+}
+
+test "src/loader.zig empty program readReader" {
+    const badprogram = [_]u8{
+        0xef, 0xbe, 0xad, 0xde, // Magic number
+        0x00, 0x00, 0x00, 0x00, // Empty Program
+    };
+
+    var bufstream = std.io.fixedBufferStream(&badprogram);
+    const result = readReader(std.testing.allocator, bufstream.reader());
+    try std.testing.expectError(error.InvalidProgram, result);
+}
+
+test "src/loader.zig oversized program readReader" {
+    const badprogram = [_]u8{
+        0xef, 0xbe, 0xad, 0xde, // Magic number
+        0xff, 0xff, 0xff, 0xff, // 4GB
+        0x00, 0x00, 0x00, 0x00
+    };
+
+    var bufstream = std.io.fixedBufferStream(&badprogram);
+    const result = readReader(std.testing.allocator, bufstream.reader());
+    try std.testing.expectError(error.InvalidProgram, result);
 }
 
