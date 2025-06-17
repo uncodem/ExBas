@@ -37,15 +37,11 @@ pub const Program = struct {
 pub const MAGIC_NUMBER = 0xdeadbeef;
 pub const MAX_SIZE = 1e7;
 
-pub fn readFile(allocator: std.mem.Allocator, fname: []const u8) !Program {
+pub fn readReader(allocator: std.mem.Allocator, reader: std.io.Reader) !Program {
     var ret = Program{
         .allocator = allocator
     };
 
-    const file = if (std.fs.path.isAbsolute(fname)) try std.fs.openFileAbsolute(fname, .{}) else try std.fs.cwd().openFile(fname, .{});
-    defer file.close();
-
-    const reader = file.reader();
     const magic_test = try reader.readInt(u32, .little) catch return error.InvalidProgram;
 
     if (magic_test != MAGIC_NUMBER) return error.InvalidProgram;
@@ -62,5 +58,14 @@ pub fn readFile(allocator: std.mem.Allocator, fname: []const u8) !Program {
     ret.constants = try vals.readValues(allocator, values);
 
     return ret;
+}
+
+pub fn readFile(allocator: std.mem.Allocator, fname: []const u8) !Program {
+    const file = if (std.fs.path.isAbsolute(fname)) try std.fs.openFileAbsolute(fname, .{}) else try std.fs.cwd().openFile(fname, .{});
+    defer file.close();
+
+    const reader = file.reader();
+
+    return readReader(allocator, reader);
 }
 
