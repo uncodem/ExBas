@@ -200,6 +200,15 @@ pub const Vm = struct {
                     try self.stack.push(linevalue);
                 },
 
+                .OP_CAST => {
+                    const targetType = std.meta.intToEnum(vals.ValueType, try self.fetch()) catch return error.InvalidCast;
+                    const old_v = try self.pop();
+                    defer self.release(old_v);
+                    const new_v = try old_v.cast(self.allocator, targetType);
+
+                    try self.stack.push(try new_v.alloc_copy(self.allocator));
+                },
+
                 .OP_CONST => try self.stack.push(try self.constants[try self.fetch()].alloc_copy(self.allocator)),
                 .OP_COPY => try self.stack.push(try self.stack.top().?.alloc_copy(self.allocator)),
 

@@ -3,7 +3,8 @@ const expect = std.testing.expect;
 
 pub const ValueError = error {
     InvalidData,
-    InvalidDataType
+    InvalidDataType,
+    InvalidCast
 };
 
 pub const ValueType = enum(u8) {
@@ -27,7 +28,6 @@ pub const Value = struct {
 
     pub fn copy(self: Value) !Value {
         return Value{
-            .refcount = 1,
             .allocator = self.allocator,
             .size = self.size,
             .data = switch(self.data) {
@@ -46,6 +46,7 @@ pub const Value = struct {
     pub fn alloc_copy(self: Value, allocator: std.mem.Allocator) !*Value {
         const ret: *Value = try allocator.create(Value);
         ret.* = try self.copy();
+        ret.refcount = 1;
         ret.allocator = allocator;
         return ret;
     }
@@ -84,6 +85,65 @@ pub const Value = struct {
 
     pub fn kind(self: Value) ValueType {
         return @as(ValueType, self.data);
+    }
+
+    pub fn strcast(self: *Value, allocator: std.mem.Allocator) ![]u8 {
+        var buffer = std.ArrayList(u8).init(allocator);
+        const writer = buffer.writer();
+
+        switch (self.data) {
+            .Int => |x| { try writer.print("{d}", .{x}); },
+            .Float => |x| { try writer.print("{d}", .{x}); },
+            else => return error.InvalidCast
+        }
+
+        return try buffer.toOwnedSlice();
+    }
+
+    pub fn cast(self: *Value, allocator: std.mem.Allocator, res_type: ValueType) !Value {
+        var ret = Value{
+            .allocator = self.allocator,
+            .size = switch(res_type) {
+                .Int, .Float => 4,
+                .Bool => 1,
+                .String => 0, // Zero due to it being dependent on data
+                _ => return error.InvalidDataType
+            }
+        };
+
+        switch(self.data) {
+            .String => |x| {
+                ret.data = switch(res_type) {
+                    .Int => .{.Int = try std.fmt.parseInt(i32, x, 10)},
+                    .Float => .{.Float = try std.fmt.parseFloat(f32, x)},
+                    else => return error.InvalidCast
+                };
+            },
+            .Bool => |x| {
+                ret.data = switch(res_type) {
+                    .Int => .{.Int = if (x) 1 else 0},
+                    .Float => .{.Float = if (x) 1.0 else 0.0},
+                    else => return error.InvalidCast
+                };
+            },
+            .Int => |x| {
+                ret.data = switch(res_type) {
+                    .String => .{.String = try self.strcast(allocator)},
+                    .Float => .{.Float = @floatFromInt(x)},
+                    else => return error.InvalidCast
+                };
+            },
+            .Float => |x| {
+                ret.data = switch(res_type) {
+                    .String => .{.String = try self.strcast(allocator)},
+                    .Int => .{.Int = @intFromFloat(x)},
+                    else => return error.InvalidCast
+                };
+            },
+            else => unreachable
+        }
+
+        return ret;
     }
 
 };
