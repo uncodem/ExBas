@@ -131,6 +131,8 @@ pub fn readValues(allocator: std.mem.Allocator, byte_data: []const u8) !std.Arra
     var ret = std.ArrayList(Value).init(allocator);
     var pos: usize = 0;
 
+    if (byte_data.len == 0) { return ret; } // Allow empty constants
+
     while (pos < byte_data.len) {
         const value = try readValue(allocator, byte_data[pos..]);
         try ret.append(value);

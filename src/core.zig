@@ -176,7 +176,7 @@ pub const Vm = struct {
         if (x.release()) self.allocator.destroy(x);
     }
 
-    pub fn run(self: *Vm) !void {
+    pub fn run(self: *Vm, reader: anytype) !void {
         while (true) {
             const opc: VmOpcode = @enumFromInt(try self.fetch());
             switch (opc) {
@@ -184,6 +184,20 @@ pub const Vm = struct {
                     var x = try self.pop();
                     defer self.release(x);
                     x.dump();
+                },
+
+                .OP_INPUT => {
+                    var line = std.ArrayList(u8).init(self.allocator);
+                    try reader.streamUntilDelimiter(line.writer(), '\n', null);
+                    const strslice = try line.toOwnedSlice();
+                    const linevalue = try self.allocator.create(Value);
+                    linevalue.* = Value{
+                        .allocator = self.allocator,
+                        .data = .{ .String = strslice },
+                        .size = strslice.len,
+                        .refcount = 1,
+                    };
+                    try self.stack.push(linevalue);
                 },
 
                 .OP_CONST => try self.stack.push(try self.constants[try self.fetch()].alloc_copy(self.allocator)),

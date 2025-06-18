@@ -11,12 +11,11 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     // const allocator = std.heap.c_allocator;
 
-    const byte_data = [_]u8{0, 36, 0x00, 0x00, 0x00, 0, 33, 0x00, 0x00, 0x00, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00};
+//    const byte_data = [_]u8{0, 36, 0x00, 0x00, 0x00, 0, 33, 0x00, 0x00, 0x00, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00};
+    const byte_data = [_]u8{};
 
     const test_prog = [_]u8{
-        @intFromEnum(opc.OP_CONST), 0,
-        @intFromEnum(opc.OP_CONST), 1,
-        @intFromEnum(opc.OP_ADD),
+        @intFromEnum(opc.OP_INPUT),
         @intFromEnum(opc.OP_DUMP),
         @intFromEnum(opc.OP_RET)
     };
@@ -27,6 +26,6 @@ pub fn main() !void {
     var vm = try core.Vm.init(allocator, &prog);
     defer vm.deinit();
 
-    try vm.run();
+    try vm.run(std.io.getStdIn().reader());
 }
 
