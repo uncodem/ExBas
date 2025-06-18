@@ -16,7 +16,7 @@ pub fn main() !void {
 
     const test_prog = [_]u8{
         @intFromEnum(opc.OP_INPUT),
-        @intFromEnum(opc.OP_CAST), 0,
+        @intFromEnum(opc.OP_CAST), 3,
         @intFromEnum(opc.OP_DUMP),
         @intFromEnum(opc.OP_RET)
     };

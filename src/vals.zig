@@ -132,6 +132,7 @@ pub const Value = struct {
                     .Float => .{.Float = @floatFromInt(x)},
                     else => return error.InvalidCast
                 };
+                if (res_type == .String) ret.size = ret.data.String.len;
             },
             .Float => |x| {
                 ret.data = switch(res_type) {
@@ -139,6 +140,7 @@ pub const Value = struct {
                     .Int => .{.Int = @intFromFloat(x)},
                     else => return error.InvalidCast
                 };
+                if (res_type == .String) ret.size = ret.data.String.len;
             },
             else => unreachable
         }
@@ -254,5 +256,31 @@ test "src/vals.zig readValues" {
     try expect(values.items.len == 4);
 }
 
+test "src/vals.zig casting" {
+    const allocator = std.testing.allocator;
+    const expectError = std.testing.expectError;
 
+    const strbyte_data = [_]u8{1, 65, 66, 67, 0};
+    var strvalue = try readValue(std.testing.allocator, &strbyte_data);
+    defer strvalue.deinit();
+
+    try expectError(error.InvalidCast, strvalue.cast(allocator, ValueType.Bool)); // Str -> Bool
+
+    const boolbyte_data = [_]u8{2, 0};
+    var boolvalue = try readValue(std.testing.allocator, &boolbyte_data);
+    defer boolvalue.deinit();
+
+    try expectError(error.InvalidCast, boolvalue.cast(allocator, ValueType.String)); // Bool -> Str
+    const intbool = try boolvalue.cast(allocator, ValueType.Int); // Bool -> Int
+    try expect(intbool.data.Int == 0);
+
+    const floatbyte_data = [_]u8{3,86,14,73,64};
+    var floatvalue = try readValue(std.testing.allocator, &floatbyte_data);
+    defer floatvalue.deinit();
+    
+    var floatstring = try floatvalue.cast(allocator, ValueType.String); // Float -> Str
+    defer floatstring.deinit();
+
+    try expect(std.mem.eql(u8, floatstring.data.String, "3.1415"));
+}
 

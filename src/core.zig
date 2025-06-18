@@ -209,7 +209,7 @@ pub const Vm = struct {
                     try self.stack.push(try new_v.alloc_copy(self.allocator));
                 },
 
-                .OP_CONST => try self.stack.push(try self.constants[try self.fetch()].alloc_copy(self.allocator)),
+                .OP_CONST => try self.stack.push(try self.constants[self.fetch() catch return error.MalformedCode].alloc_copy(self.allocator)),
                 .OP_COPY => try self.stack.push(try self.stack.top().?.alloc_copy(self.allocator)),
 
                 .OP_STARTSCOPE => try self.new_scope(),
