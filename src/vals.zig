@@ -110,39 +110,31 @@ pub const Value = struct {
             }
         };
 
-        switch(self.data) {
-            .String => |x| {
-                ret.data = switch(res_type) {
-                    .Int => .{.Int = try std.fmt.parseInt(i32, x, 10)},
-                    .Float => .{.Float = try std.fmt.parseFloat(f32, x)},
-                    else => return error.InvalidCast
-                };
+        ret.data = switch(self.data) {
+            .String => |x| switch(res_type) {
+                .Int => .{.Int = try std.fmt.parseInt(i32, x, 10)},
+                .Float => .{.Float = try std.fmt.parseFloat(f32, x)},
+                else => return error.InvalidCast
             },
-            .Bool => |x| {
-                ret.data = switch(res_type) {
-                    .Int => .{.Int = if (x) 1 else 0},
-                    .Float => .{.Float = if (x) 1.0 else 0.0},
-                    else => return error.InvalidCast
-                };
+            .Bool => |x| switch(res_type) {
+                .Int => .{.Int = if (x) 1 else 0},
+                .Float => .{.Float = if (x) 1.0 else 0.0},
+                else => return error.InvalidCast
             },
-            .Int => |x| {
-                ret.data = switch(res_type) {
-                    .String => .{.String = try self.strcast(allocator)},
-                    .Float => .{.Float = @floatFromInt(x)},
-                    else => return error.InvalidCast
-                };
-                if (res_type == .String) ret.size = ret.data.String.len;
+            .Int => |x| switch(res_type) {
+                .String => .{.String = try self.strcast(allocator)},
+                .Float => .{.Float = @floatFromInt(x)},
+                else => return error.InvalidCast
             },
-            .Float => |x| {
-                ret.data = switch(res_type) {
-                    .String => .{.String = try self.strcast(allocator)},
-                    .Int => .{.Int = @intFromFloat(x)},
-                    else => return error.InvalidCast
-                };
-                if (res_type == .String) ret.size = ret.data.String.len;
+            .Float => |x| switch(res_type) {
+                .String => .{.String = try self.strcast(allocator)},
+                .Int => .{.Int = @intFromFloat(x)},
+                else => return error.InvalidCast
             },
-            else => unreachable
-        }
+            else => return error.InvalidDataType 
+        };
+
+        if (ret.kind() == .String) ret.size = ret.data.String.len;
 
         return ret;
     }
