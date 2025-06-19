@@ -32,6 +32,5 @@ pub const VmOpcode = enum(u8) {
     OP_DUMP,
     OP_INPUT,
     OP_RET,
-    _
+    _,
 };
-

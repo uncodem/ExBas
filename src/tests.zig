@@ -1,4 +1,3 @@
-
 test {
     _ = @import("stack.zig");
     _ = @import("core.zig");
@@ -6,4 +5,3 @@ test {
     _ = @import("opcodes.zig");
     _ = @import("loader.zig");
 }
-

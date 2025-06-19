@@ -1,9 +1,7 @@
 const std = @import("std");
 const expect = std.testing.expect;
 
-pub const StackError = error {
-    StackUnderflow
-};
+pub const StackError = error{StackUnderflow};
 
 pub fn Stack(comptime T: type) type {
     return struct {
@@ -14,10 +12,7 @@ pub fn Stack(comptime T: type) type {
         allocator: std.mem.Allocator = undefined,
 
         pub fn init(allocator: std.mem.Allocator) !Self {
-            return Self{
-                .data = try allocator.alloc(T, 8),
-                .allocator = allocator
-            }; 
+            return Self{ .data = try allocator.alloc(T, 8), .allocator = allocator };
         }
 
         pub fn deinit(this: Self) void {
@@ -34,7 +29,7 @@ pub fn Stack(comptime T: type) type {
 
         pub fn top(this: *Self) ?T {
             if (this.sp == 0) return null;
-            return this.data[this.sp-1];
+            return this.data[this.sp - 1];
         }
 
         pub fn pop(this: *Self) !T {
@@ -42,8 +37,7 @@ pub fn Stack(comptime T: type) type {
             if (ret == null) return error.StackUnderflow;
             this.sp -= 1;
             return ret.?;
-        } 
-
+        }
     };
 }
 
@@ -59,4 +53,3 @@ test "src/stack.zig" {
     try expect(stack.top().? == 8);
     try expect(stack.data.len == 16);
 }
-

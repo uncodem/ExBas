@@ -14,12 +14,7 @@ const VmOpcode = opcodes.VmOpcode;
 
 const ValueStack = Stack(*Value);
 
-pub const VmError = error {
-    InvalidOpcode,
-    MismatchedTypes,
-    UndefinedVariable,
-    MalformedCode
-};
+pub const VmError = error{ InvalidOpcode, MismatchedTypes, UndefinedVariable, MalformedCode };
 
 pub const Vm = struct {
     stack: ValueStack = undefined,
@@ -27,14 +22,14 @@ pub const Vm = struct {
     pc: usize = 0,
 
     program: *const Program = undefined,
-    
+
     current_scope: *Scope = undefined,
     scopes: std.ArrayList(Scope) = undefined,
 
     constants: []const Value = undefined,
 
     allocator: std.mem.Allocator = undefined,
-    
+
     pub fn init(allocator: std.mem.Allocator, program: *const Program) !Vm {
         var scopes = std.ArrayList(Scope).init(allocator);
 
@@ -49,7 +44,7 @@ pub const Vm = struct {
             .callstack = try stack.Stack(usize).init(allocator),
             .scopes = scopes,
             .current_scope = &scopes.items[0],
-            .constants = program.constants.items
+            .constants = program.constants.items,
         };
     }
 
@@ -72,7 +67,7 @@ pub const Vm = struct {
         self.callstack.deinit();
     }
 
-    fn fetch(self: *Vm) !u8 { 
+    fn fetch(self: *Vm) !u8 {
         if (self.pc >= self.program.code.len) return error.MalformedCode;
         const x = self.program.code[self.pc];
         self.pc += 1;
@@ -85,7 +80,7 @@ pub const Vm = struct {
         return ret;
     }
 
-    // scope_indx is relative to local scope where the innermost scope is 0 
+    // scope_indx is relative to local scope where the innermost scope is 0
     // and scope_indx = n is global scope
 
     pub fn getvar(self: *Vm, scope_indx: u8, indx: u8) !*Value {
@@ -93,7 +88,7 @@ pub const Vm = struct {
 
         var scope = self.current_scope;
 
-        if (scope_indx != 0) scope = &self.scopes.items[self.scopes.items.len-scope_indx-1]; 
+        if (scope_indx != 0) scope = &self.scopes.items[self.scopes.items.len - scope_indx - 1];
         if (indx >= scope.items.len) return error.UndefinedVariable;
 
         return scope.items[indx];
@@ -104,7 +99,7 @@ pub const Vm = struct {
 
         var scope = self.current_scope;
 
-        if (scope_indx != 0) scope = &self.scopes.items[self.scopes.items.len-scope_indx-1]; 
+        if (scope_indx != 0) scope = &self.scopes.items[self.scopes.items.len - scope_indx - 1];
         if (indx >= scope.items.len) return error.UndefinedVariable;
 
         self.release(scope.items[indx]);
@@ -117,7 +112,7 @@ pub const Vm = struct {
 
     fn new_scope(self: *Vm) !void {
         try self.scopes.append(Scope.init(self.allocator));
-        self.current_scope = &self.scopes.items[self.scopes.items.len-1];
+        self.current_scope = &self.scopes.items[self.scopes.items.len - 1];
     }
 
     fn deinit_scope(self: *Vm) !void {
@@ -129,38 +124,36 @@ pub const Vm = struct {
             self.release(item);
         }
         scope.deinit();
-        self.current_scope = &self.scopes.items[self.scopes.items.len-1];
+        self.current_scope = &self.scopes.items[self.scopes.items.len - 1];
     }
 
     fn binOp(self: *Vm, op: VmOpcode) !*Value {
         const b = try self.pop();
         const a = try self.pop();
-        defer { self.release(b); self.release(a); }
+        defer {
+            self.release(b);
+            self.release(a);
+        }
 
         if (a.kind() != .Int or b.kind() != .Int) return error.MismatchedTypes;
 
         // TODO: Operations regarding strings
 
-        const ret = Value{
-            .allocator = self.allocator,
-            .data = switch (op) {
-                .OP_ADD => .{ .Int = (a.data.Int + b.data.Int) },
-                .OP_SUB => .{ .Int = (a.data.Int - b.data.Int) },
-                .OP_MUL => .{ .Int = (a.data.Int * b.data.Int) },
-                .OP_DIV => .{ .Int = @divFloor(a.data.Int, b.data.Int) },
-                .OP_EQL => .{ .Bool = (a.data.Int == b.data.Int) },
-                .OP_NEQL => .{ .Bool = (a.data.Int != b.data.Int) },
-                .OP_MORE => .{ .Bool = (a.data.Int > b.data.Int) },
-                .OP_LESS => .{ .Bool = (a.data.Int < b.data.Int) },
-                else => unreachable
-            },
-            .refcount = 0,
-            .size = switch (op) {
-                .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV => 4,
-                .OP_EQL, .OP_NEQL, .OP_MORE, .OP_LESS => 1,
-                else => unreachable
-            }
-        };
+        const ret = Value{ .allocator = self.allocator, .data = switch (op) {
+            .OP_ADD => .{ .Int = (a.data.Int + b.data.Int) },
+            .OP_SUB => .{ .Int = (a.data.Int - b.data.Int) },
+            .OP_MUL => .{ .Int = (a.data.Int * b.data.Int) },
+            .OP_DIV => .{ .Int = @divFloor(a.data.Int, b.data.Int) },
+            .OP_EQL => .{ .Bool = (a.data.Int == b.data.Int) },
+            .OP_NEQL => .{ .Bool = (a.data.Int != b.data.Int) },
+            .OP_MORE => .{ .Bool = (a.data.Int > b.data.Int) },
+            .OP_LESS => .{ .Bool = (a.data.Int < b.data.Int) },
+            else => unreachable,
+        }, .refcount = 0, .size = switch (op) {
+            .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV => 4,
+            .OP_EQL, .OP_NEQL, .OP_MORE, .OP_LESS => 1,
+            else => unreachable,
+        } };
 
         return ret.alloc_copy(self.allocator);
     }
@@ -180,7 +173,7 @@ pub const Vm = struct {
         while (true) {
             const opc: VmOpcode = @enumFromInt(try self.fetch());
             switch (opc) {
-                .OP_DUMP => { 
+                .OP_DUMP => {
                     var x = try self.pop();
                     defer self.release(x);
                     x.dump();
@@ -215,12 +208,12 @@ pub const Vm = struct {
                 .OP_STARTSCOPE => try self.new_scope(),
                 .OP_ENDSCOPE => try self.deinit_scope(),
 
-                .OP_DEFVAR => { 
+                .OP_DEFVAR => {
                     // We do not touch refcount here as popping and adding it to scope would cancel out
                     try self.current_scope.append(try self.pop());
                 },
 
-                .OP_PUSHVAR => { 
+                .OP_PUSHVAR => {
                     const v = try self.getvar(try self.fetch(), try self.fetch());
                     v.refcount += 1;
                     try self.stack.push(v);
@@ -247,8 +240,7 @@ pub const Vm = struct {
 
                 .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
 
-                .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, 
-                .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),
+                .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),
 
                 .OP_JMP => try self.jump(try self.fetchi16()),
                 .OP_CALL => {
@@ -278,9 +270,8 @@ pub const Vm = struct {
                     // Return if there is an address on the callstack, but quit if there is none
                     self.pc = self.callstack.pop() catch return;
                 },
-                _ => return error.MalformedCode
+                _ => return error.MalformedCode,
             }
         }
     }
 };
-

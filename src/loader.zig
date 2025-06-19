@@ -5,7 +5,7 @@ const expect = std.testing.expect;
 
 const Value = vals.Value;
 
-pub const LoaderError = error {
+pub const LoaderError = error{
     InvalidProgram,
 };
 
@@ -39,14 +39,12 @@ pub const MAGIC_NUMBER = 0xdeadbeef;
 pub const MAX_SIZE: comptime_int = 1e7;
 
 pub fn readReader(allocator: std.mem.Allocator, reader: anytype) !Program {
-    var ret = Program{
-        .allocator = allocator
-    };
+    var ret = Program{ .allocator = allocator };
 
     const magic_test = try reader.readInt(u32, .little);
 
     if (magic_test != MAGIC_NUMBER) return error.InvalidProgram;
-    
+
     const codesize: usize = @intCast(try reader.readInt(u32, .little));
     if (codesize == 0 or codesize > MAX_SIZE) return error.InvalidProgram;
 
@@ -57,7 +55,7 @@ pub fn readReader(allocator: std.mem.Allocator, reader: anytype) !Program {
 
     const const_bytes = try reader.readAllAlloc(allocator, MAX_SIZE - codesize);
     defer allocator.free(const_bytes);
-    
+
     ret.constants = try vals.readValues(allocator, const_bytes);
 
     return ret;
@@ -77,18 +75,14 @@ test "src/loader.zig Program.init" {
     // OP_CONST 0
     // OP_DUMP
     // OP_RET
-    
+
     const opcodes = @import("opcodes.zig");
     const opc = opcodes.VmOpcode;
 
-    const code = [_]u8{
-         @intFromEnum(opc.OP_CONST), 0,
-         @intFromEnum(opc.OP_DUMP), 
-         @intFromEnum(opc.OP_RET)
-    };
+    const code = [_]u8{ @intFromEnum(opc.OP_CONST), 0, @intFromEnum(opc.OP_DUMP), @intFromEnum(opc.OP_RET) };
 
     // String("ABC")
-    const const_data = [_]u8{1, 0x41, 0x42, 0x43, 0x00};
+    const const_data = [_]u8{ 1, 0x41, 0x42, 0x43, 0x00 };
 
     const prog = try Program.init(std.testing.allocator, &const_data, &code);
     defer prog.deinit();
@@ -103,9 +97,8 @@ test "src/loader.zig readReader" {
 
     const progdata = [_]u8{
         0xef, 0xbe, 0xad, 0xde, // Magic number
-        0x04, 0x00, 0x00, 0x00, // Codesize
-        @intFromEnum(opc.OP_CONST), 0,
-        @intFromEnum(opc.OP_DUMP),
+        0x04,                       0x00, 0x00,                      0x00, // Codesize
+        @intFromEnum(opc.OP_CONST), 0,    @intFromEnum(opc.OP_DUMP),
         @intFromEnum(opc.OP_RET), // End code chunk
         1, 0x41, 0x42, 0x43, 0x00, // Start const chunk; String("ABC")
     };
@@ -124,16 +117,15 @@ test "src/loader.zig malformed magic number readReader" {
 
     var bufstream = std.io.fixedBufferStream(&badmagic);
     const result = readReader(std.testing.allocator, bufstream.reader());
-    
-    try std.testing.expectError(error.InvalidProgram, result);
 
+    try std.testing.expectError(error.InvalidProgram, result);
 }
 
 test "src/loader.zig malformed program readReader" {
     const badcodesize = [_]u8{
         0xef, 0xbe, 0xad, 0xde, // Magic number
-        0x04, 0x00, 0x00, 0x00, 
-        0x00, 0x00 // invalid program
+        0x04, 0x00, 0x00, 0x00,
+        0x00, 0x00, // invalid program
     };
 
     var bufstream = std.io.fixedBufferStream(&badcodesize);
@@ -157,11 +149,10 @@ test "src/loader.zig oversized program readReader" {
     const badprogram = [_]u8{
         0xef, 0xbe, 0xad, 0xde, // Magic number
         0xff, 0xff, 0xff, 0xff, // 4GB
-        0x00, 0x00, 0x00, 0x00
+        0x00, 0x00, 0x00, 0x00,
     };
 
     var bufstream = std.io.fixedBufferStream(&badprogram);
     const result = readReader(std.testing.allocator, bufstream.reader());
     try std.testing.expectError(error.InvalidProgram, result);
 }
-
