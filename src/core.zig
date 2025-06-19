@@ -226,6 +226,25 @@ pub const Vm = struct {
                     try self.stack.push(v);
                 },
 
+                .OP_DROP => {
+                    const v = try self.pop();
+                    self.release(v);
+                },
+
+                .OP_DUP => {
+                    const v = self.stack.top() orelse return error.MalformedCode;
+                    v.refcount += 1;
+                    try self.stack.push(v);
+                },
+
+                .OP_SWAP => {
+                    // This would not touch the refcounts since we do not consume the values themselves.
+                    const a = try self.pop();
+                    const b = try self.pop();
+                    try self.stack.push(a);
+                    try self.stack.push(b);
+                },
+
                 .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
 
                 .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, 

@@ -11,6 +11,9 @@ pub const VmOpcode = enum(u8) {
     OP_DEFVAR,
     OP_PUSHVAR,
     OP_POPVAR,
+    OP_SWAP,
+    OP_DUP,
+    OP_DROP,
 
     OP_ADD,
     OP_SUB,
