@@ -4,6 +4,7 @@ pub const VmOpcode = enum(u8) {
     OP_CONST = 0,
     OP_COPY,
     OP_CAST,
+    OP_SIZE,
 
     OP_STARTSCOPE,
     OP_ENDSCOPE,
@@ -14,6 +15,11 @@ pub const VmOpcode = enum(u8) {
     OP_SWAP,
     OP_DUP,
     OP_DROP,
+
+    OP_CREATEARRAY,
+    OP_INITARRAY,
+    OP_CGET,
+    OP_RGET,
 
     OP_ADD,
     OP_SUB,
