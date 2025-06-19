@@ -47,7 +47,6 @@ pub const Value = struct {
         const ret: *Value = try allocator.create(Value);
         ret.* = try self.copy();
         ret.refcount = 1;
-        ret.allocator = allocator;
         return ret;
     }
 
