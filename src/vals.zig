@@ -227,7 +227,7 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !ReadValue
             for (0..arrsize) |_| {
                 const v = try readValue(allocator, val_data[pos..]);
                 pos += v.bytes_read;
-                if (pos >= val_data.len) return error.InvalidData;
+                if (pos > val_data.len) return error.InvalidData;
                 consumed += v.bytes_read;
                 try buffer.append(v.value);
             }
@@ -308,6 +308,22 @@ test "src/vals.zig readValue Float" {
     try expect(floatvalue.kind() == .Float);
     try expect(floatvalue.size == 4);
     try expect(floatvalue.data.Float == 3.1415);
+}
+
+test "src/vals.zig readValue Array" {
+    const arrbyte_data = [_]u8{ 4, 4, 2, 0, 2, 1, 2, 0, 2, 1};
+    const arrresult = try readValue(std.testing.allocator, &arrbyte_data);
+    const arrvalue = arrresult.value;
+    defer arrvalue.deinit();
+
+    std.debug.print("{d} {d}\n", .{arrbyte_data.len, arrresult.bytes_read});
+    try expect(arrbyte_data.len == arrresult.bytes_read);
+    try expect(arrvalue.data.Array.len == 4);
+    try expect(arrvalue.kind() == .Array);
+    for (0..4, arrvalue.data.Array) |x, y| {
+        try expect((x % 2 == 1) == y.data.Bool);
+    }
+
 }
 
 test "src/vals.zig readValues" {

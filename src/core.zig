@@ -74,10 +74,11 @@ pub const Vm = struct {
         return x;
     }
 
-    fn fetchi16(self: *Vm) !i16 {
-        var ret: i16 = try self.fetch();
-        ret |= @as(i16, try self.fetch()) << 8;
-        return ret;
+    fn fetch16(self: *Vm, comptime T: type) !T {
+        if (!(T == u16 or T == i16)) @compileError("Vm.fetch16 only supports u16 or i16");
+        var ret: u16 = try self.fetch();
+        ret |= @as(u16, try self.fetch()) << 8;
+        return @bitCast(ret);
     }
 
     // scope_indx is relative to local scope where the innermost scope is 0
@@ -169,6 +170,17 @@ pub const Vm = struct {
         if (x.release()) self.allocator.destroy(x);
     }
 
+    fn reserveArray(self: *Vm, size: u16) !*Value {
+        const ret = try self.allocator.create(Value);
+        ret.* = Value{
+            .allocator = self.allocator,
+            .size = @intCast(size),
+            .data = .{ .Array = try self.allocator.alloc(Value, @intCast(size)) },
+            .refcount = 1,
+        };
+        return ret;
+    }
+
     pub fn run(self: *Vm, reader: anytype) !void {
         while (true) {
             const opc: VmOpcode = @enumFromInt(try self.fetch());
@@ -238,25 +250,37 @@ pub const Vm = struct {
                     try self.stack.push(b);
                 },
 
+                .OP_CREATEARRAY => try self.stack.push(try self.reserveArray(try self.fetch16(u16))),
+                .OP_INITARRAY => {
+                    const arrsize: u16 = try self.fetch16(u16);
+                    const arrvalue = try self.reserveArray(arrsize);
+
+                    for (0..arrsize) |i| {
+                        const v = try self.pop();
+                        defer self.release(v);
+                        arrvalue.data.Array[arrsize-i-1] = v.copy();
+                    }
+                },
+
                 .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
 
                 .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),
 
-                .OP_JMP => try self.jump(try self.fetchi16()),
+                .OP_JMP => try self.jump(try self.fetch16(i16)),
                 .OP_CALL => {
-                    const offs: i16 = try self.fetchi16();
+                    const offs: i16 = try self.fetch16(i16);
                     try self.callstack.push(self.pc);
                     try self.jump(offs);
                 },
                 .OP_TJMP => {
-                    const offs: i16 = try self.fetchi16();
+                    const offs: i16 = try self.fetch16(i16);
                     const x = try self.stack.pop();
                     defer self.release(x);
                     if (x.kind() != .Bool) return error.MismatchedTypes;
                     if (x.data.Bool) try self.jump(offs);
                 },
                 .OP_TCALL => {
-                    const offs: i16 = try self.fetchi16();
+                    const offs: i16 = try self.fetch16(i16);
                     const x = try self.stack.pop();
                     defer self.release(x);
                     if (x.kind() != .Bool) return error.MismatchedTypes;

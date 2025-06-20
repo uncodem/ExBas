@@ -20,6 +20,8 @@ pub const VmOpcode = enum(u8) {
     OP_INITARRAY,
     OP_CGET,
     OP_RGET,
+    OP_CSET,
+    OP_RSET,
 
     OP_ADD,
     OP_SUB,
