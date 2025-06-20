@@ -12,16 +12,18 @@ pub const ValueType = enum(u8) {
     _,
 };
 
+pub const ValueData = union(ValueType) {
+    Int: i32,
+    String: []u8,
+    Bool: bool,
+    Float: f32,
+    Array: []Value,
+};
+
 pub const Value = struct {
     size: usize = 0,
     refcount: u32 = 0,
-    data: union(ValueType) {
-        Int: i32,
-        String: []u8,
-        Bool: bool,
-        Float: f32,
-        Array: []Value,
-    } = undefined,
+    data: ValueData = undefined,
 
     allocator: std.mem.Allocator = undefined,
 
@@ -123,18 +125,24 @@ pub const Value = struct {
             .Int, .Float, .Bool => return error.InvalidDataType,
             .Array => |x| arrblk: {
                 if (indx >= x.len) return error.InvalidIndex;
-                break :arrblk x[indx];
+                break :arrblk x[@intCast(indx)];
             },
             .String => |x| strblk: {
                 // We do not have a char type in the VM, this would just return an Int. Since I want to avoid an unnecessary allocation.
                 if (indx >= x.len) return error.InvalidIndex;
                 break :strblk Value{
                     .allocator = self.allocator, // Should not matter anyways
-                    .data = .{ .Int = @intCast(x[indx]) },
+                    .data = .{ .Int = @intCast(x[@intCast(indx)]) },
                     .size = 4
                 };
             }
         };
+    }
+
+    pub fn setAt(self: *Value, value: Value, indx: i32) !void {
+        if (self.kind() != .Array) return error.InvalidDataType;
+        if (indx < 0 or indx > self.size) return error.InvalidIndex;
+        self.data.Array[@intCast(indx)] = value;
     }
 
     pub fn cast(self: *Value, allocator: std.mem.Allocator, res_type: ValueType) !Value {
