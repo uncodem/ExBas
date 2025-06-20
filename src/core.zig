@@ -184,7 +184,7 @@ pub const Vm = struct {
             .data = data,
             .allocator = self.allocator,
             .refcount = 1,
-            .size = switch(data) {
+            .size = switch (data) {
                 .Int, .Float => 4,
                 .Bool => 1,
                 .String => data.String.len,
@@ -198,7 +198,7 @@ pub const Vm = struct {
         const data = vals.ValueData{ .Array = try self.allocator.alloc(Value, @intCast(size)) };
         return self.makeValue(data);
     }
-    
+
     pub fn run(self: *Vm, reader: anytype) !void {
         while (true) {
             const opc: VmOpcode = @enumFromInt(try self.fetch());
@@ -213,7 +213,7 @@ pub const Vm = struct {
                     var line = std.ArrayList(u8).init(self.allocator);
                     try reader.streamUntilDelimiter(line.writer(), '\n', null);
                     const strslice = try line.toOwnedSlice();
-                    try self.stack.push(try self.makeValue(.{.String = strslice}));
+                    try self.stack.push(try self.makeValue(.{ .String = strslice }));
                 },
 
                 .OP_CAST => {
@@ -269,7 +269,7 @@ pub const Vm = struct {
                     for (0..arrsize) |i| {
                         const v = try self.pop();
                         defer self.release(v);
-                        arrvalue.data.Array[arrsize-i-1] = try v.copy();
+                        arrvalue.data.Array[arrsize - i - 1] = try v.copy();
                     }
 
                     try self.stack.push(arrvalue);
@@ -278,7 +278,10 @@ pub const Vm = struct {
                 .OP_RGET => {
                     const indx = try self.popExpect(.Int);
                     const arr = try self.popExpect(.Array);
-                    defer { self.release(indx); self.release(arr); }
+                    defer {
+                        self.release(indx);
+                        self.release(arr);
+                    }
                     try self.stack.push(try (try arr.at(indx.data.Int)).alloc_copy(self.allocator));
                 },
 
@@ -286,7 +289,11 @@ pub const Vm = struct {
                     const v = try self.pop();
                     const indx = try self.popExpect(.Int);
                     const arr = try self.popExpect(.Array);
-                    defer { self.release(v); self.release(indx); self.release(arr); }
+                    defer {
+                        self.release(v);
+                        self.release(indx);
+                        self.release(arr);
+                    }
 
                     try arr.setAt(try v.copy(), indx.data.Int);
                 },
@@ -294,13 +301,16 @@ pub const Vm = struct {
                 .OP_CGET => {
                     const arr = try self.popExpect(.Array);
                     defer self.release(arr);
-                    try self.stack.push(try (try arr.at(try self.fetch16(u16))).alloc_copy(self.allocator) );
+                    try self.stack.push(try (try arr.at(try self.fetch16(u16))).alloc_copy(self.allocator));
                 },
 
                 .OP_CSET => {
                     const v = try self.pop();
                     const arr = try self.popExpect(.Array);
-                    defer { self.release(v); self.release(arr); }
+                    defer {
+                        self.release(v);
+                        self.release(arr);
+                    }
                     try arr.setAt(try v.copy(), try self.fetch16(u16));
                 },
 
@@ -308,9 +318,9 @@ pub const Vm = struct {
                     const top = try self.pop();
                     defer self.release(top);
 
-                    try self.stack.push(try self.makeValue(.{.Int = @intCast(top.size)}));
+                    try self.stack.push(try self.makeValue(.{ .Int = @intCast(top.size) }));
                 },
-                
+
                 .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
 
                 .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),

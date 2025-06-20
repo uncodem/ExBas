@@ -3,11 +3,11 @@ const expect = std.testing.expect;
 
 pub const ValueError = error{ InvalidData, InvalidDataType, InvalidCast, InvalidIndex };
 
-pub const ValueType = enum(u8) { 
-    Int = 0, 
-    String, 
-    Bool, 
-    Float, 
+pub const ValueType = enum(u8) {
+    Int = 0,
+    String,
+    Bool,
+    Float,
     Array,
     _,
 };
@@ -118,10 +118,10 @@ pub const Value = struct {
         return try buffer.toOwnedSlice();
     }
 
-    // indx is i32 to allow runtime indexing. 
+    // indx is i32 to allow runtime indexing.
     pub fn at(self: *Value, indx: i32) !Value {
         if (indx < 0) return error.InvalidIndex;
-        return switch(self.data) {
+        return switch (self.data) {
             .Int, .Float, .Bool => return error.InvalidDataType,
             .Array => |x| arrblk: {
                 if (indx >= x.len) return error.InvalidIndex;
@@ -133,9 +133,9 @@ pub const Value = struct {
                 break :strblk Value{
                     .allocator = self.allocator, // Should not matter anyways
                     .data = .{ .Int = @intCast(x[@intCast(indx)]) },
-                    .size = 4
+                    .size = 4,
                 };
-            }
+            },
         };
     }
 
@@ -189,10 +189,7 @@ pub const Value = struct {
     }
 };
 
-pub const ReadValueResult = struct {
-    value: Value,
-    bytes_read: usize
-};
+pub const ReadValueResult = struct { value: Value, bytes_read: usize };
 
 pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !ReadValueResult {
     if (byte_data.len < 1) return error.InvalidData;
@@ -208,7 +205,7 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !ReadValue
     };
 
     var valret = Value{ .allocator = allocator, .size = valsize, .refcount = 0 };
-    var consumed = valsize+1;
+    var consumed = valsize + 1;
 
     if (valsize != 0 and val_data.len < valsize) return error.InvalidData;
 
@@ -222,7 +219,7 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !ReadValue
             const buffer = try allocator.alloc(u8, strslice.len);
             std.mem.copyForwards(u8, buffer, strslice);
             valret.size = strslice.len;
-            consumed += 1+strslice.len;
+            consumed += 1 + strslice.len;
             break :strblk buffer;
         } },
         .Array => .{ .Array = arrblk: {
@@ -244,10 +241,7 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !ReadValue
         _ => unreachable,
     };
 
-    return ReadValueResult{
-        .value = valret,
-        .bytes_read = consumed
-    };
+    return ReadValueResult{ .value = valret, .bytes_read = consumed };
 }
 
 pub fn readValues(allocator: std.mem.Allocator, byte_data: []const u8) !std.ArrayList(Value) {
@@ -311,7 +305,7 @@ test "src/vals.zig readValue Float" {
     const floatresult = try readValue(std.testing.allocator, &floatbyte_data);
     const floatvalue = floatresult.value;
     defer floatvalue.deinit();
-    
+
     try expect(floatresult.bytes_read == floatbyte_data.len);
     try expect(floatvalue.kind() == .Float);
     try expect(floatvalue.size == 4);
@@ -319,7 +313,7 @@ test "src/vals.zig readValue Float" {
 }
 
 test "src/vals.zig readValue Array" {
-    const arrbyte_data = [_]u8{ 4, 4, 2, 0, 2, 1, 2, 0, 2, 1};
+    const arrbyte_data = [_]u8{ 4, 4, 2, 0, 2, 1, 2, 0, 2, 1 };
     const arrresult = try readValue(std.testing.allocator, &arrbyte_data);
     const arrvalue = arrresult.value;
     defer arrvalue.deinit();
@@ -330,7 +324,6 @@ test "src/vals.zig readValue Array" {
     for (0..4, arrvalue.data.Array) |x, y| {
         try expect((x % 2 == 1) == y.data.Bool);
     }
-
 }
 
 test "src/vals.zig readValues" {
