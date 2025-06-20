@@ -1,7 +1,7 @@
 const std = @import("std");
 const expect = std.testing.expect;
 
-pub const ValueError = error{ InvalidData, InvalidDataType, InvalidCast };
+pub const ValueError = error{ InvalidData, InvalidDataType, InvalidCast, InvalidIndex };
 
 pub const ValueType = enum(u8) { 
     Int = 0, 
@@ -114,6 +114,27 @@ pub const Value = struct {
         }
 
         return try buffer.toOwnedSlice();
+    }
+
+    // indx is i32 to allow runtime indexing. 
+    pub fn at(self: *Value, indx: i32) !Value {
+        if (indx < 0) return error.InvalidIndex;
+        return switch(self.data) {
+            .Int, .Float, .Bool => return error.InvalidDataType,
+            .Array => |x| arrblk: {
+                if (indx >= x.len) return error.InvalidIndex;
+                break :arrblk x[indx];
+            },
+            .String => |x| strblk: {
+                // We do not have a char type in the VM, this would just return an Int. Since I want to avoid an unnecessary allocation.
+                if (indx >= x.len) return error.InvalidIndex;
+                break :strblk Value{
+                    .allocator = self.allocator, // Should not matter anyways
+                    .data = .{ .Int = @intCast(x[indx]) },
+                    .size = 4
+                };
+            }
+        };
     }
 
     pub fn cast(self: *Value, allocator: std.mem.Allocator, res_type: ValueType) !Value {
