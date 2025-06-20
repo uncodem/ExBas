@@ -270,7 +270,7 @@ pub const Vm = struct {
                     // Return if there is an address on the callstack, but quit if there is none
                     self.pc = self.callstack.pop() catch return;
                 },
-                _ => return error.MalformedCode,
+                else => return error.MalformedCode,
             }
         }
     }
