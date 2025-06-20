@@ -324,7 +324,6 @@ test "src/vals.zig readValue Array" {
     const arrvalue = arrresult.value;
     defer arrvalue.deinit();
 
-    std.debug.print("{d} {d}\n", .{arrbyte_data.len, arrresult.bytes_read});
     try expect(arrbyte_data.len == arrresult.bytes_read);
     try expect(arrvalue.data.Array.len == 4);
     try expect(arrvalue.kind() == .Array);
