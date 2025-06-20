@@ -1,19 +1,29 @@
 const std = @import("std");
 const expect = std.testing.expect;
 
-pub const ValueError = error{ InvalidData, InvalidDataType, InvalidCast };
+pub const ValueError = error{ InvalidData, InvalidDataType, InvalidCast, InvalidIndex };
 
-pub const ValueType = enum(u8) { Int = 0, String, Bool, Float, _ };
+pub const ValueType = enum(u8) { 
+    Int = 0, 
+    String, 
+    Bool, 
+    Float, 
+    Array,
+    _,
+};
+
+pub const ValueData = union(ValueType) {
+    Int: i32,
+    String: []u8,
+    Bool: bool,
+    Float: f32,
+    Array: []Value,
+};
 
 pub const Value = struct {
     size: usize = 0,
     refcount: u32 = 0,
-    data: union(ValueType) {
-        Int: i32,
-        String: []u8,
-        Bool: bool,
-        Float: f32,
-    } = undefined,
+    data: ValueData = undefined,
 
     allocator: std.mem.Allocator = undefined,
 
@@ -25,10 +35,17 @@ pub const Value = struct {
                 .Int => .{ .Int = self.data.Int },
                 .Bool => .{ .Bool = self.data.Bool },
                 .Float => .{ .Float = self.data.Float },
-                .String => .{ .String = blk: {
+                .String => .{ .String = strblk: {
                     const buffer = try self.allocator.alloc(u8, self.size);
                     std.mem.copyForwards(u8, buffer, self.data.String);
-                    break :blk buffer;
+                    break :strblk buffer;
+                } },
+                .Array => .{ .Array = arrblk: {
+                    const buffer = try self.allocator.alloc(Value, self.size);
+                    for (buffer, self.data.Array) |*x, y| {
+                        x.* = try y.copy();
+                    }
+                    break :arrblk buffer;
                 } },
             },
         };
@@ -50,13 +67,20 @@ pub const Value = struct {
                 const ch: u8 = if (x) 'T' else 'F';
                 std.debug.print("BoolValue({c})\n", .{ch});
             },
+            .Array => |x| for (x) |item| item.dump(),
         }
     }
 
     pub fn deinit(self: Value) void {
         return switch (self.data) {
             .Int, .Bool, .Float => {},
-            .String => self.allocator.free(self.data.String),
+            .String => |x| self.allocator.free(x),
+            .Array => |x| {
+                for (x) |item| {
+                    item.deinit();
+                }
+                self.allocator.free(x);
+            },
         };
     }
 
@@ -94,13 +118,43 @@ pub const Value = struct {
         return try buffer.toOwnedSlice();
     }
 
+    // indx is i32 to allow runtime indexing. 
+    pub fn at(self: *Value, indx: i32) !Value {
+        if (indx < 0) return error.InvalidIndex;
+        return switch(self.data) {
+            .Int, .Float, .Bool => return error.InvalidDataType,
+            .Array => |x| arrblk: {
+                if (indx >= x.len) return error.InvalidIndex;
+                break :arrblk x[@intCast(indx)];
+            },
+            .String => |x| strblk: {
+                // We do not have a char type in the VM, this would just return an Int. Since I want to avoid an unnecessary allocation.
+                if (indx >= x.len) return error.InvalidIndex;
+                break :strblk Value{
+                    .allocator = self.allocator, // Should not matter anyways
+                    .data = .{ .Int = @intCast(x[@intCast(indx)]) },
+                    .size = 4
+                };
+            }
+        };
+    }
+
+    pub fn setAt(self: *Value, value: Value, indx: i32) !void {
+        if (self.kind() != .Array) return error.InvalidDataType;
+        if (indx < 0 or indx > self.size) return error.InvalidIndex;
+        self.data.Array[@intCast(indx)] = value;
+    }
+
     pub fn cast(self: *Value, allocator: std.mem.Allocator, res_type: ValueType) !Value {
+        if (self.kind() == .Array or res_type == .Array) return error.InvalidCast;
+
         var ret = Value{
             .allocator = self.allocator,
             .size = switch (res_type) {
                 .Int, .Float => 4,
                 .Bool => 1,
                 .String => 0, // Zero due to it being dependent on data
+                .Array => return error.InvalidCast,
                 _ => return error.InvalidDataType,
             },
         };
@@ -135,7 +189,12 @@ pub const Value = struct {
     }
 };
 
-pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
+pub const ReadValueResult = struct {
+    value: Value,
+    bytes_read: usize
+};
+
+pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !ReadValueResult {
     if (byte_data.len < 1) return error.InvalidData;
 
     const ret_type: ValueType = std.meta.intToEnum(ValueType, byte_data[0]) catch return error.InvalidDataType;
@@ -144,15 +203,16 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
     const valsize: usize = switch (ret_type) {
         .Int, .Float => 4,
         .Bool => 1,
-        .String => 0, // Zero due to it being dependent on data
+        .Array, .String => 0, // Zero due to it being dependent on data
         _ => return error.InvalidDataType,
     };
 
-    var ret = Value{ .allocator = allocator, .size = valsize, .refcount = 0 };
+    var valret = Value{ .allocator = allocator, .size = valsize, .refcount = 0 };
+    var consumed = valsize+1;
 
-    if (ret_type != .String and val_data.len < valsize) return error.InvalidData;
+    if (valsize != 0 and val_data.len < valsize) return error.InvalidData;
 
-    ret.data = switch (ret_type) {
+    valret.data = switch (ret_type) {
         .Int => .{ .Int = std.mem.readInt(i32, val_data[0..4], .little) },
         .Float => .{ .Float = @bitCast(std.mem.readInt(i32, val_data[0..4], .little)) },
         .Bool => .{ .Bool = (val_data[0] == 1) },
@@ -161,13 +221,33 @@ pub fn readValue(allocator: std.mem.Allocator, byte_data: []const u8) !Value {
             const strslice = val_data[0..endIndx];
             const buffer = try allocator.alloc(u8, strslice.len);
             std.mem.copyForwards(u8, buffer, strslice);
-            ret.size = strslice.len;
+            valret.size = strslice.len;
+            consumed += 1+strslice.len;
             break :strblk buffer;
+        } },
+        .Array => .{ .Array = arrblk: {
+            const arrsize = val_data[0];
+            valret.size = arrsize;
+            consumed += 1;
+            var pos: usize = 1;
+            var buffer = std.ArrayList(Value).init(allocator);
+            errdefer buffer.deinit();
+            for (0..arrsize) |_| {
+                const v = try readValue(allocator, val_data[pos..]);
+                pos += v.bytes_read;
+                if (pos > val_data.len) return error.InvalidData;
+                consumed += v.bytes_read;
+                try buffer.append(v.value);
+            }
+            break :arrblk try buffer.toOwnedSlice();
         } },
         _ => unreachable,
     };
 
-    return ret;
+    return ReadValueResult{
+        .value = valret,
+        .bytes_read = consumed
+    };
 }
 
 pub fn readValues(allocator: std.mem.Allocator, byte_data: []const u8) !std.ArrayList(Value) {
@@ -179,52 +259,78 @@ pub fn readValues(allocator: std.mem.Allocator, byte_data: []const u8) !std.Arra
     } // Allow empty constants
 
     while (pos < byte_data.len) {
-        const value = try readValue(allocator, byte_data[pos..]);
-        try ret.append(value);
-        pos += value.size + 1;
-
-        // Skip null-terminator for string
-        if (value.kind() == .String) pos += 1;
+        const result = try readValue(allocator, byte_data[pos..]);
+        try ret.append(result.value);
+        pos += result.bytes_read;
     }
 
     return ret;
 }
 
-test "src/vals.zig readValue" {
+test "src/vals.zig readValue String" {
     // StrValue(ABC)
     const strbyte_data = [_]u8{ 1, 65, 66, 67, 0 };
-    const strvalue = try readValue(std.testing.allocator, &strbyte_data);
+    const strresult = try readValue(std.testing.allocator, &strbyte_data);
+    const strvalue = strresult.value;
     defer strvalue.deinit();
 
+    try expect(strresult.bytes_read == strbyte_data.len);
     try expect(strvalue.kind() == .String);
     try expect(strvalue.data.String.len == 3 and strvalue.size == 3);
     try expect(std.mem.eql(u8, strvalue.data.String, "ABC"));
+}
 
+test "src/vals.zig readValue Int" {
     // IntValue(65)
     const intbyte_data = [_]u8{ 0, 0x41, 0x00, 0x00, 0x00 };
-    const intvalue = try readValue(std.testing.allocator, &intbyte_data);
+    const intresult = try readValue(std.testing.allocator, &intbyte_data);
+    const intvalue = intresult.value;
     defer intvalue.deinit();
 
+    try expect(intresult.bytes_read == intbyte_data.len);
     try expect(intvalue.kind() == .Int);
     try expect(intvalue.size == 4);
     try expect(intvalue.data.Int == 65);
+}
 
+test "src/vals.zig readValue Bool" {
     // BoolValue(F)
     const boolbyte_data = [_]u8{ 2, 0 };
-    const boolvalue = try readValue(std.testing.allocator, &boolbyte_data);
+    const boolresult = try readValue(std.testing.allocator, &boolbyte_data);
+    const boolvalue = boolresult.value;
     defer boolvalue.deinit();
 
+    try expect(boolresult.bytes_read == boolbyte_data.len);
     try expect(boolvalue.kind() == .Bool);
     try expect(boolvalue.size == 1);
     try expect(!boolvalue.data.Bool);
+}
 
+test "src/vals.zig readValue Float" {
     const floatbyte_data = [_]u8{ 3, 86, 14, 73, 64 };
-    const floatvalue = try readValue(std.testing.allocator, &floatbyte_data);
+    const floatresult = try readValue(std.testing.allocator, &floatbyte_data);
+    const floatvalue = floatresult.value;
     defer floatvalue.deinit();
-
+    
+    try expect(floatresult.bytes_read == floatbyte_data.len);
     try expect(floatvalue.kind() == .Float);
     try expect(floatvalue.size == 4);
     try expect(floatvalue.data.Float == 3.1415);
+}
+
+test "src/vals.zig readValue Array" {
+    const arrbyte_data = [_]u8{ 4, 4, 2, 0, 2, 1, 2, 0, 2, 1};
+    const arrresult = try readValue(std.testing.allocator, &arrbyte_data);
+    const arrvalue = arrresult.value;
+    defer arrvalue.deinit();
+
+    try expect(arrbyte_data.len == arrresult.bytes_read);
+    try expect(arrvalue.data.Array.len == 4);
+    try expect(arrvalue.kind() == .Array);
+    for (0..4, arrvalue.data.Array) |x, y| {
+        try expect((x % 2 == 1) == y.data.Bool);
+    }
+
 }
 
 test "src/vals.zig readValues" {
@@ -236,6 +342,12 @@ test "src/vals.zig readValues" {
         }
         values.deinit();
     }
+
+    try expect(values.items[0].data.Int == 0x42);
+    try expect(values.items[1].data.Bool == true);
+    try expect(values.items[2].data.String.len == 5);
+    try expect(values.items[3].data.Float == 3.1415);
+
     try expect(values.items.len == 4);
 }
 
@@ -244,13 +356,13 @@ test "src/vals.zig casting" {
     const expectError = std.testing.expectError;
 
     const strbyte_data = [_]u8{ 1, 65, 66, 67, 0 };
-    var strvalue = try readValue(std.testing.allocator, &strbyte_data);
+    var strvalue = (try readValue(std.testing.allocator, &strbyte_data)).value;
     defer strvalue.deinit();
 
     try expectError(error.InvalidCast, strvalue.cast(allocator, ValueType.Bool)); // Str -> Bool
 
     const boolbyte_data = [_]u8{ 2, 0 };
-    var boolvalue = try readValue(std.testing.allocator, &boolbyte_data);
+    var boolvalue = (try readValue(std.testing.allocator, &boolbyte_data)).value;
     defer boolvalue.deinit();
 
     try expectError(error.InvalidCast, boolvalue.cast(allocator, ValueType.String)); // Bool -> Str
@@ -258,7 +370,7 @@ test "src/vals.zig casting" {
     try expect(intbool.data.Int == 0);
 
     const floatbyte_data = [_]u8{ 3, 86, 14, 73, 64 };
-    var floatvalue = try readValue(std.testing.allocator, &floatbyte_data);
+    var floatvalue = (try readValue(std.testing.allocator, &floatbyte_data)).value;
     defer floatvalue.deinit();
 
     var floatstring = try floatvalue.cast(allocator, ValueType.String); // Float -> Str

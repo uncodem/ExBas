@@ -8,6 +8,8 @@ const opc = opcodes.VmOpcode;
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     defer _ = gpa.deinit();
+    defer _ = gpa.detectLeaks();
+
     const allocator = gpa.allocator();
     // const allocator = std.heap.c_allocator;
 

@@ -74,10 +74,11 @@ pub const Vm = struct {
         return x;
     }
 
-    fn fetchi16(self: *Vm) !i16 {
-        var ret: i16 = try self.fetch();
-        ret |= @as(i16, try self.fetch()) << 8;
-        return ret;
+    fn fetch16(self: *Vm, comptime T: type) !T {
+        if (!(T == u16 or T == i16)) @compileError("Vm.fetch16 only supports u16 or i16");
+        var ret: u16 = try self.fetch();
+        ret |= @as(u16, try self.fetch()) << 8;
+        return @bitCast(ret);
     }
 
     // scope_indx is relative to local scope where the innermost scope is 0
@@ -108,6 +109,12 @@ pub const Vm = struct {
 
     fn pop(self: *Vm) !*Value {
         return try self.stack.pop();
+    }
+
+    fn popExpect(self: *Vm, expected: vals.ValueType) !*Value {
+        const v = try self.pop();
+        if (v.kind() != expected) return error.MismatchedTypes;
+        return v;
     }
 
     fn new_scope(self: *Vm) !void {
@@ -169,6 +176,29 @@ pub const Vm = struct {
         if (x.release()) self.allocator.destroy(x);
     }
 
+    // This function would not make copies of the data it gets.
+    // It would assume that any []Value or []u8 are already heap allocated and use the VM's allocator.
+    fn makeValue(self: *Vm, data: vals.ValueData) !*Value {
+        const ret = try self.allocator.create(Value);
+        ret.* = Value{
+            .data = data,
+            .allocator = self.allocator,
+            .refcount = 1,
+            .size = switch(data) {
+                .Int, .Float => 4,
+                .Bool => 1,
+                .String => data.String.len,
+                .Array => data.Array.len,
+            },
+        };
+        return ret;
+    }
+
+    fn reserveArray(self: *Vm, size: u16) !*Value {
+        const data = vals.ValueData{ .Array = try self.allocator.alloc(Value, @intCast(size)) };
+        return self.makeValue(data);
+    }
+    
     pub fn run(self: *Vm, reader: anytype) !void {
         while (true) {
             const opc: VmOpcode = @enumFromInt(try self.fetch());
@@ -183,14 +213,7 @@ pub const Vm = struct {
                     var line = std.ArrayList(u8).init(self.allocator);
                     try reader.streamUntilDelimiter(line.writer(), '\n', null);
                     const strslice = try line.toOwnedSlice();
-                    const linevalue = try self.allocator.create(Value);
-                    linevalue.* = Value{
-                        .allocator = self.allocator,
-                        .data = .{ .String = strslice },
-                        .size = strslice.len,
-                        .refcount = 1,
-                    };
-                    try self.stack.push(linevalue);
+                    try self.stack.push(try self.makeValue(.{.String = strslice}));
                 },
 
                 .OP_CAST => {
@@ -238,25 +261,75 @@ pub const Vm = struct {
                     try self.stack.push(b);
                 },
 
+                .OP_CREATEARRAY => try self.stack.push(try self.reserveArray(try self.fetch16(u16))),
+                .OP_INITARRAY => {
+                    const arrsize: u16 = try self.fetch16(u16);
+                    const arrvalue = try self.reserveArray(arrsize);
+
+                    for (0..arrsize) |i| {
+                        const v = try self.pop();
+                        defer self.release(v);
+                        arrvalue.data.Array[arrsize-i-1] = try v.copy();
+                    }
+
+                    try self.stack.push(arrvalue);
+                },
+
+                .OP_RGET => {
+                    const indx = try self.popExpect(.Int);
+                    const arr = try self.popExpect(.Array);
+                    defer { self.release(indx); self.release(arr); }
+                    try self.stack.push(try (try arr.at(indx.data.Int)).alloc_copy(self.allocator));
+                },
+
+                .OP_RSET => {
+                    const v = try self.pop();
+                    const indx = try self.popExpect(.Int);
+                    const arr = try self.popExpect(.Array);
+                    defer { self.release(v); self.release(indx); self.release(arr); }
+
+                    try arr.setAt(try v.copy(), indx.data.Int);
+                },
+
+                .OP_CGET => {
+                    const arr = try self.popExpect(.Array);
+                    defer self.release(arr);
+                    try self.stack.push(try (try arr.at(try self.fetch16(u16))).alloc_copy(self.allocator) );
+                },
+
+                .OP_CSET => {
+                    const v = try self.pop();
+                    const arr = try self.popExpect(.Array);
+                    defer { self.release(v); self.release(arr); }
+                    try arr.setAt(try v.copy(), try self.fetch16(u16));
+                },
+
+                .OP_SIZE => {
+                    const top = try self.pop();
+                    defer self.release(top);
+
+                    try self.stack.push(try self.makeValue(.{.Int = @intCast(top.size)}));
+                },
+                
                 .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
 
                 .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),
 
-                .OP_JMP => try self.jump(try self.fetchi16()),
+                .OP_JMP => try self.jump(try self.fetch16(i16)),
                 .OP_CALL => {
-                    const offs: i16 = try self.fetchi16();
+                    const offs: i16 = try self.fetch16(i16);
                     try self.callstack.push(self.pc);
                     try self.jump(offs);
                 },
                 .OP_TJMP => {
-                    const offs: i16 = try self.fetchi16();
+                    const offs: i16 = try self.fetch16(i16);
                     const x = try self.stack.pop();
                     defer self.release(x);
                     if (x.kind() != .Bool) return error.MismatchedTypes;
                     if (x.data.Bool) try self.jump(offs);
                 },
                 .OP_TCALL => {
-                    const offs: i16 = try self.fetchi16();
+                    const offs: i16 = try self.fetch16(i16);
                     const x = try self.stack.pop();
                     defer self.release(x);
                     if (x.kind() != .Bool) return error.MismatchedTypes;
@@ -270,7 +343,7 @@ pub const Vm = struct {
                     // Return if there is an address on the callstack, but quit if there is none
                     self.pc = self.callstack.pop() catch return;
                 },
-                _ => return error.MalformedCode,
+                else => return error.MalformedCode,
             }
         }
     }
