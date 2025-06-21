@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const expect = std.testing.expect;
 
 pub const StackError = error{StackUnderflow};
@@ -10,6 +11,10 @@ pub fn Stack(comptime T: type) type {
         data: []T = undefined,
         sp: usize = 0,
         allocator: std.mem.Allocator = undefined,
+
+        // Should use only for debugging
+        push_count: u32 = 0,
+        pop_count: u32 = 0,
 
         pub fn init(allocator: std.mem.Allocator) !Self {
             return Self{ .data = try allocator.alloc(T, 8), .allocator = allocator };
@@ -25,6 +30,7 @@ pub fn Stack(comptime T: type) type {
             }
             this.data[this.sp] = x;
             this.sp += 1;
+            this.push_count += 1;
         }
 
         pub fn top(this: *Self) ?T {
@@ -36,6 +42,7 @@ pub fn Stack(comptime T: type) type {
             const ret = this.top();
             if (ret == null) return error.StackUnderflow;
             this.sp -= 1;
+            this.push_count += 1;
             return ret.?;
         }
     };
