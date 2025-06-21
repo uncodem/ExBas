@@ -1,7 +1,11 @@
 const std = @import("std");
+const opcodes = @import("opcodes.zig");
+
+const VmOp = opcodes.VmOpcode;
+
 const expect = std.testing.expect;
 
-pub const ValueError = error{ InvalidData, InvalidDataType, InvalidCast, InvalidIndex };
+pub const ValueError = error{ InvalidData, InvalidDataType, InvalidCast, InvalidIndex, InvalidOperation };
 
 pub const ValueType = enum(u8) {
     Int = 0,
@@ -165,6 +169,42 @@ pub const Value = struct {
 
         if (ret.size == 0) ret.size = ret.data.String.len;
         return ret;
+    }
+
+    // This may be scalarOp, but add is a separate function
+    fn scalarOp(self: *Value, y: Value, op: VmOp, comptime T: type) !Value {
+        if (T != f32 and T != i32) @compileError("value.ScalarOp only supports f32 and i32");
+        if (self.kind() != y.kind()) return error.InvalidDataType;
+
+        const a: T = switch (T) {
+            i32 => self.data.Int,
+            f32 => self.data.Float,
+            else => unreachable
+        };
+
+        const b: T = switch (T) {
+            i32 => y.data.Int,
+            f32 => y.data.Float,
+            else => unreachable
+        };
+
+        const c: T = switch(op) {
+            .OP_ADD => a+b,
+            .OP_SUB => a-b,
+            .OP_MUL => a*b,
+            .OP_DIV => a/b,
+            .OP_MOD => a%b,
+            else => return error.InvalidOperation,
+        };
+
+        return Value{
+            .size = 4,
+            .data = switch(T) {
+                i32 => .{ .Int = c },
+                f32 => .{ .Float = c },
+                else => unreachable
+            }
+        };
     }
 
     pub fn setAt(self: *Value, value: Value, indx: i32) !void {
