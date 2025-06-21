@@ -4,6 +4,7 @@ const opcodes = @import("opcodes.zig");
 const VmOp = opcodes.VmOpcode;
 
 const expect = std.testing.expect;
+const expectError = std.testing.expectError;
 
 pub const ValueError = error{ InvalidData, InvalidDataType, InvalidCast, InvalidIndex, InvalidOperation };
 
@@ -450,7 +451,6 @@ test "src/vals.zig readValues" {
 
 test "src/vals.zig casting" {
     const allocator = std.testing.allocator;
-    const expectError = std.testing.expectError;
 
     const strbyte_data = [_]u8{ 1, 65, 66, 67, 0 };
     var strvalue = (try readValue(std.testing.allocator, &strbyte_data)).value;
@@ -474,4 +474,68 @@ test "src/vals.zig casting" {
     defer floatstring.deinit();
 
     try expect(std.mem.eql(u8, floatstring.data.String, "3.1415"));
+}
+
+test "src/vals.zig eql" {
+    const byte_data = [_]u8{1, 65, 66, 67,0, 1, 68, 69, 70, 0, 0, 0x42, 0x00, 0x00, 0x00};
+    const values = try readValues(std.testing.allocator, &byte_data);
+    defer { 
+        for (values.items) |v| {
+            v.deinit();
+        }
+        values.deinit(); 
+    }
+    try expect(!(try values.items[0].eql(values.items[1])));
+    try expect(!(try values.items[0].eql(values.items[2])));
+}
+
+test "src/vals.zig arithmetic" {
+    const byte_data = [_]u8{0, 0x42, 0x00, 0x00, 0x00, 0, 0x03, 0x00, 0x00, 0x00, 3, 86, 14, 73, 64};
+    const values = try readValues(std.testing.allocator, &byte_data);
+    defer { 
+        for (values.items) |v| {
+            v.deinit();
+        }
+        values.deinit(); 
+    }
+
+    const success = try values.items[0].arithmeticOp(values.items[1], .OP_ADD, i32);
+    const failure = values.items[1].arithmeticOp(values.items[2], .OP_ADD, i32);
+
+    try expect(success.data.Int == 69);
+    try expectError(error.InvalidDataType, failure);
+}
+
+test "src/vals.zig comparison" {
+    const byte_data = [_]u8{0, 0x42, 0x00, 0x00, 0x00, 0, 0x03, 0x00, 0x00, 0x00, 3, 86, 14, 73, 64};
+    const values = try readValues(std.testing.allocator, &byte_data);
+    defer { 
+        for (values.items) |v| {
+            v.deinit();
+        }
+        values.deinit(); 
+    }
+
+    const success = try values.items[0].comparisonOp(values.items[1], .OP_MORE, i32);
+    const failure = values.items[1].comparisonOp(values.items[2], .OP_MORE, i32);
+
+    try expect(success.data.Bool);
+    try expectError(error.InvalidDataType, failure);
+}
+
+test "src/vals.zig logic" {
+    const byte_data = [_]u8{2, 1, 2, 0, 2, 1};
+    const values = try readValues(std.testing.allocator, &byte_data);
+    defer { 
+        for (values.items) |v| {
+            v.deinit();
+        }
+        values.deinit(); 
+    }
+
+    const op_or = try values.items[0].logicOp(values.items[1], .OP_OR);
+    const op_and = try values.items[1].logicOp(values.items[2], .OP_AND);
+
+    try expect(op_or.data.Bool);
+    try expect(!op_and.data.Bool);
 }
