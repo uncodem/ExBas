@@ -168,7 +168,6 @@ pub const Value = struct {
         return ret;
     }
 
-    // This may be scalarOp, but add is a separate function
     pub fn scalarOp(self: *Value, y: Value, op: VmOp, comptime T: type) !Value {
         if (T != f32 and T != i32) @compileError("value.ScalarOp only supports f32 and i32");
         if (self.kind() != y.kind()) return error.InvalidDataType;
@@ -192,6 +191,39 @@ pub const Value = struct {
                 f32 => .{ .Float = c },
                 else => unreachable
             }
+        };
+    }
+
+    pub fn boolOp(self: *Value, y: Value, op: VmOp, comptime T: type) !Value {
+        if (T != f32 and T != i32) @compileError("value.boolOp only supports f32 and i32");
+        if (self.kind() != y.kind()) return error.InvalidDataType;
+
+        const a = if (T == i32) self.data.Int else self.data.Float;
+        const b = if (T == i32) y.data.Int else y.data.Float;
+
+        const c: bool = switch (op) {
+            .OP_MORE => a>b,
+            .OP_LESS => a<b,
+            .OP_EQMORE => a>=b,
+            .OP_EQLESS => a<=b,
+            else => return error.InvalidOperation,
+        };
+
+        return Value{
+            .size = 1,
+            .data = .{ .Bool = c }
+        };
+    }
+
+    pub fn eql(self: *Value, y: Value) !bool {
+        if (self.kind() == .Array or y.kind() == .Array) return error.InvalidDataType;
+        if (self.kind() != y.kind()) return false;
+        return switch(self.data) {
+            .Int => |x| x == y.data.Int,
+            .Float => |x| x == y.data.Float,
+            .Bool => |x| x == y.data.Bool,
+            .String => |x| std.mem.eql(u8, x, y.data.String),
+            else => return error.InvalidDataType 
         };
     }
 
