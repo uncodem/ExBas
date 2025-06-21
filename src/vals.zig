@@ -179,7 +179,7 @@ pub const Value = struct {
             .OP_ADD => a+b,
             .OP_SUB => a-b,
             .OP_MUL => a*b,
-            .OP_DIV => if (T == i32) @divTrunc(a, b) else a/b,
+            .OP_DIV => if (T == i32) @divFloor(a, b) else a/b,
             .OP_MOD => @rem(a, b),
             else => return error.InvalidOperation,
         };
