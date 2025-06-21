@@ -245,6 +245,7 @@ pub const Value = struct {
     pub fn setAt(self: *Value, value: Value, indx: i32) !void {
         if (self.kind() != .Array) return error.InvalidDataType;
         if (indx < 0 or indx > self.size) return error.InvalidIndex;
+        self.data.Array[@intCast(indx)].deinit();
         self.data.Array[@intCast(indx)] = value;
     }
 
