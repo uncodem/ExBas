@@ -144,7 +144,7 @@ pub const Value = struct {
     }
 
     pub fn concat(self: *Value, y: Value, allocator: std.mem.Allocator) !Value {
-        if (self.kind() != .String or self.kind() != y.kind()) return error.InvalidDataType;
+        if (self.kind() != .String or y.kind() != .String) return error.InvalidDataType;
 
         var ret = Value{
             .allocator = allocator,
@@ -287,7 +287,7 @@ pub const Value = struct {
             else => return error.InvalidDataType,
         };
 
-        if (ret.kind() == .String) ret.size = ret.data.String.len;
+        if (res_type == .String) ret.size = ret.data.String.len;
 
         return ret;
     }
