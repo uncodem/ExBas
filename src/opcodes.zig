@@ -28,11 +28,14 @@ pub const VmOpcode = enum(u8) {
     OP_DIV,
     OP_MUL,
     OP_MOD,
+
     OP_AND,
     OP_OR,
     OP_NOT,
+
     OP_EQL,
     OP_NEQL,
+
     OP_MORE,
     OP_LESS,
     OP_EQMORE,

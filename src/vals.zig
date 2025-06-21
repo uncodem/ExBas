@@ -156,10 +156,10 @@ pub const Value = struct {
 
         ret.data = switch(self.data) {
             .String => |x| strblk: {
-                const buffer = std.ArrayList(u8).init(allocator);
+                var buffer = std.ArrayList(u8).init(allocator);
                 const writer = buffer.writer();
                 try writer.print("{s}{s}", .{x, y.data.String});
-                break :strblk try buffer.toOwnedSlice();
+                break :strblk .{ .String = try buffer.toOwnedSlice() } ;
             },
             else => unreachable,
         };
@@ -168,8 +168,8 @@ pub const Value = struct {
         return ret;
     }
 
-    pub fn scalarOp(self: *Value, y: Value, op: VmOp, comptime T: type) !Value {
-        if (T != f32 and T != i32) @compileError("value.ScalarOp only supports f32 and i32");
+    pub fn arithmeticOp(self: *Value, y: Value, op: VmOp, comptime T: type) !Value {
+        if (T != f32 and T != i32) @compileError("value.arithmeticOp only supports f32 and i32");
         if (self.kind() != y.kind()) return error.InvalidDataType;
 
         const a = if (T == i32) self.data.Int else self.data.Float;
@@ -179,8 +179,8 @@ pub const Value = struct {
             .OP_ADD => a+b,
             .OP_SUB => a-b,
             .OP_MUL => a*b,
-            .OP_DIV => a/b,
-            .OP_MOD => a%b,
+            .OP_DIV => if (T == i32) @divTrunc(a, b) else a/b,
+            .OP_MOD => @rem(a, b),
             else => return error.InvalidOperation,
         };
 
@@ -194,8 +194,8 @@ pub const Value = struct {
         };
     }
 
-    pub fn boolOp(self: *Value, y: Value, op: VmOp, comptime T: type) !Value {
-        if (T != f32 and T != i32) @compileError("value.boolOp only supports f32 and i32");
+    pub fn comparisonOp(self: *Value, y: Value, op: VmOp, comptime T: type) !Value {
+        if (T != f32 and T != i32) @compileError("value.comparisonOp only supports f32 and i32");
         if (self.kind() != y.kind()) return error.InvalidDataType;
 
         const a = if (T == i32) self.data.Int else self.data.Float;
@@ -212,6 +212,21 @@ pub const Value = struct {
         return Value{
             .size = 1,
             .data = .{ .Bool = c }
+        };
+    }
+
+    pub fn logicOp(self: *Value, y: Value, op: VmOp) !Value {
+        if (self.kind() != .Bool or y.kind() != .Bool) return error.InvalidDataType;
+
+        const a = self.data.Bool;
+        const b = y.data.Bool;
+        return Value{
+            .size = 1,
+            .data = .{ .Bool = switch (op) {
+                .OP_AND => a and b,
+                .OP_OR => a or b,
+                else => return error.InvalidOperation
+            }},
         };
     }
 

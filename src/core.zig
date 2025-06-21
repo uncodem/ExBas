@@ -137,32 +137,37 @@ pub const Vm = struct {
     fn binOp(self: *Vm, op: VmOpcode) !*Value {
         const b = try self.pop();
         const a = try self.pop();
-        defer {
-            self.release(b);
-            self.release(a);
-        }
+        defer { self.release(b); self.release(a); }
 
-        if (a.kind() != .Int or b.kind() != .Int) return error.MismatchedTypes;
+        if (a.kind() != b.kind()) return error.MismatchedTypes;
+        if (a.kind() == .Array) return error.InvalidDataType;
 
-        // TODO: Operations regarding strings
+        const ret = try self.allocator.create(Value);
+        ret.* = switch (op) {
+            .OP_EQL => Value{ .size = 1, .data = .{ .Bool = try a.eql(b.*) } },
+            .OP_NEQL => Value{ .size = 1, .data = .{ .Bool = !(try a.eql(b.*)) } },
+            .OP_ADD => switch (a.kind()) {
+                .String => try a.concat(b.*, self.allocator),
+                .Int => try a.arithmeticOp(b.*, op, i32),
+                .Float => try a.arithmeticOp(b.*, op, f32),
+                else => return error.MismatchedTypes
+            },
+            .OP_SUB, .OP_MUL, .OP_DIV, .OP_MOD => switch (a.kind()) {
+                .Int => try a.arithmeticOp(b.*, op, i32),
+                .Float => try a.arithmeticOp(b.*, op, f32),
+                else => return error.MismatchedTypes
+            },
+            .OP_MORE, .OP_LESS, .OP_EQMORE, .OP_EQLESS => switch (a.kind()) {
+                .Int => try a.comparisonOp(b.*, op, i32),
+                .Float => try a.arithmeticOp(b.*, op, f32),
+                else => return error.MismatchedTypes
+            },
+            .OP_AND, .OP_OR => try a.logicOp(b.*, op),
+            else => unreachable
+        };
+        ret.refcount = 1;
 
-        const ret = Value{ .allocator = self.allocator, .data = switch (op) {
-            .OP_ADD => .{ .Int = (a.data.Int + b.data.Int) },
-            .OP_SUB => .{ .Int = (a.data.Int - b.data.Int) },
-            .OP_MUL => .{ .Int = (a.data.Int * b.data.Int) },
-            .OP_DIV => .{ .Int = @divFloor(a.data.Int, b.data.Int) },
-            .OP_EQL => .{ .Bool = (a.data.Int == b.data.Int) },
-            .OP_NEQL => .{ .Bool = (a.data.Int != b.data.Int) },
-            .OP_MORE => .{ .Bool = (a.data.Int > b.data.Int) },
-            .OP_LESS => .{ .Bool = (a.data.Int < b.data.Int) },
-            else => unreachable,
-        }, .refcount = 0, .size = switch (op) {
-            .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV => 4,
-            .OP_EQL, .OP_NEQL, .OP_MORE, .OP_LESS => 1,
-            else => unreachable,
-        } };
-
-        return ret.alloc_copy(self.allocator);
+        return ret;
     }
 
     fn jump(self: *Vm, offs: i16) !void {
@@ -323,7 +328,9 @@ pub const Vm = struct {
 
                 .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
 
-                .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_LESS, .OP_MORE, .OP_EQL, .OP_NEQL => try self.stack.push(try self.binOp(opc)),
+                .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_MOD, 
+                .OP_LESS, .OP_MORE, .OP_EQMORE, .OP_EQLESS, 
+                .OP_EQL, .OP_NEQL, .OP_AND, .OP_OR => try self.stack.push( try self.binOp(opc) ),
 
                 .OP_JMP => try self.jump(try self.fetch16(i16)),
                 .OP_CALL => {
