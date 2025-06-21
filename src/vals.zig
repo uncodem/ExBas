@@ -139,6 +139,34 @@ pub const Value = struct {
         };
     }
 
+    pub fn add(self: *Value, y: Value, allocator: std.mem.Allocator) !Value {
+        if (self.kind() != y.kind()) return error.InvalidDataType;
+
+        var ret = Value{
+            .allocator = allocator,
+            .size = switch (self.data) {
+                .Int, .Float => 4,
+                .String => 0, // Zero due to it being dependent on data
+                .Bool, .Array => return error.InvalidDataType,
+                _ => return error.InvalidDataType,
+            },
+        };
+
+        ret.data = switch(self.data) {
+            .Int => |x| .{ .Int = x + y.data.Int },
+            .Float => |x| .{ .Float = x + y.data.Float },
+            .String => |x| strblk: {
+                const buffer = std.ArrayList(u8).init(allocator);
+                const writer = buffer.writer();
+                try writer.print("{s}{s}", .{x, y.data.String});
+                break :strblk try buffer.toOwnedSlice();
+            },
+        };
+
+        if (ret.size == 0) ret.size = ret.data.String.len;
+        return ret;
+    }
+
     pub fn setAt(self: *Value, value: Value, indx: i32) !void {
         if (self.kind() != .Array) return error.InvalidDataType;
         if (indx < 0 or indx > self.size) return error.InvalidIndex;
