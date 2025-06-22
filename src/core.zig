@@ -365,3 +365,9 @@ pub const Vm = struct {
         }
     }
 };
+
+// Creates Vm for testing. Provides constants but not code.
+pub fn makeTestVm(code: []const u8) !Vm {
+
+}
+
