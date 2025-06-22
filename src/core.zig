@@ -14,6 +14,9 @@ const VmOpcode = opcodes.VmOpcode;
 
 const ValueStack = Stack(*Value);
 
+const expectError = std.testing.expectError;
+const expect = std.testing.expect;
+
 pub const VmError = error{ InvalidOpcode, MismatchedTypes, UndefinedVariable, MalformedCode };
 
 pub const Vm = struct {
@@ -384,5 +387,71 @@ pub fn makeTestVm(allocator: std.mem.Allocator, code: []const u8) !TestVM {
         .program = program,
         .allocator = allocator,
     };
+}
+
+test "src/core.zig jump" {
+    const dummy_prog = [_]u8{@intFromEnum(VmOpcode.OP_RET)} ** 10;
+    const res = try makeTestVm(std.testing.allocator, &dummy_prog);
+    var vm = res.vm;
+    defer vm.deinit();
+    defer { res.program.deinit(); res.allocator.destroy(res.program); }
+    
+    const err = vm.jump(-1); // pc = 0; pc -> -1 MalformedCode
+    try expectError(error.MalformedCode, err);
+    try vm.jump(1); // pc = 0; pc -> 1 Noerr
+    try expect(vm.pc == 1);
+}
+
+test "src/core.zig fetches" {
+    const dummy_prog = [_]u8{
+        0xbb, 0xaa, // 0xaabb - unsigned fetch
+        0xff, 0xff, // -1 - signed fetch16
+        0x00, // fetch16 should fail
+    };
+    const res = try makeTestVm(std.testing.allocator, &dummy_prog);
+    var vm = res.vm;
+    defer vm.deinit();
+    defer { res.program.deinit(); res.allocator.destroy(res.program); }
+
+    try expect(try vm.fetch16(u16) == 0xaabb);
+    try expect(try vm.fetch16(i16) == -1);
+
+    _ = try vm.fetch();
+    try expectError(error.MalformedCode, vm.fetch());
+}
+
+test "src/core.zig deinit_scope" {
+    const dummy_prog = [_]u8{@intFromEnum(VmOpcode.OP_RET)} ** 10;
+    const res = try makeTestVm(std.testing.allocator, &dummy_prog);
+    var vm = res.vm;
+    defer vm.deinit();
+    defer { res.program.deinit(); res.allocator.destroy(res.program); }
+
+    try vm.new_scope();
+    try vm.deinit_scope();
+    const err = vm.deinit_scope(); // Try to deinit global scope
+    try expectError(error.MalformedCode, err);
+
+}
+
+test "src/core.zig vars" {
+    const dummy_prog = [_]u8{@intFromEnum(VmOpcode.OP_RET)} ** 10;
+    const res = try makeTestVm(std.testing.allocator, &dummy_prog);
+    var vm = res.vm;
+    defer vm.deinit();
+    defer { res.program.deinit(); res.allocator.destroy(res.program); }
+
+    const val = vm.constants[0];
+
+    try vm.current_scope.append(try val.alloc_copy(std.testing.allocator)); // Equivalent to OP_CONST 0; OP_DEFVAR
+
+    const vcopy = try val.alloc_copy(std.testing.allocator);
+    try vm.setvar(vcopy, 0, 0);
+    try expect( try vm.getvar(0, 0) == vcopy );
+    try vm.new_scope();
+    try expectError(error.MalformedCode, vm.getvar(3, 0));
+    try expectError(error.UndefinedVariable, vm.getvar(1, 1));
+    // These failing getvar calls test setvar calls because they use identical logic for resolving variables.
+    try vm.deinit_scope();
 }
 
