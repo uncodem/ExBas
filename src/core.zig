@@ -207,165 +207,168 @@ pub const Vm = struct {
         return self.makeValue(data);
     }
 
-    pub fn run(self: *Vm, reader: anytype) !void {
-        while (true) {
-            const opc: VmOpcode = @enumFromInt(try self.fetch());
-            switch (opc) {
-                .OP_DUMP => {
-                    var x = try self.pop();
-                    defer self.release(x);
-                    x.dump();
-                },
+    pub fn step(self: *Vm, reader: anytype)  !bool {
+        const opc: VmOpcode = @enumFromInt(try self.fetch());
+        switch (opc) {
+            .OP_DUMP => {
+                var x = try self.pop();
+                defer self.release(x);
+                x.dump();
+            },
 
-                .OP_INPUT => {
-                    var line = std.ArrayList(u8).init(self.allocator);
-                    try reader.streamUntilDelimiter(line.writer(), '\n', null);
-                    const strslice = try line.toOwnedSlice();
-                    try self.stack.push(try self.makeValue(.{ .String = strslice }));
-                },
+            .OP_INPUT => {
+                var line = std.ArrayList(u8).init(self.allocator);
+                try reader.streamUntilDelimiter(line.writer(), '\n', null);
+                const strslice = try line.toOwnedSlice();
+                try self.stack.push(try self.makeValue(.{ .String = strslice }));
+            },
 
-                .OP_CAST => {
-                    const targetType = std.meta.intToEnum(vals.ValueType, try self.fetch()) catch return error.InvalidCast;
-                    const old_v = try self.pop();
-                    defer self.release(old_v);
-                    const new_v = try old_v.cast(self.allocator, targetType);
+            .OP_CAST => {
+                const targetType = std.meta.intToEnum(vals.ValueType, try self.fetch()) catch return error.InvalidCast;
+                const old_v = try self.pop();
+                defer self.release(old_v);
+                const new_v = try old_v.cast(self.allocator, targetType);
 
-                    try self.stack.push(try new_v.alloc_copy(self.allocator));
-                },
+                try self.stack.push(try new_v.alloc_copy(self.allocator));
+            },
 
-                .OP_CONST => try self.stack.push(try self.constants[self.fetch() catch return error.MalformedCode].alloc_copy(self.allocator)),
-                .OP_COPY => try self.stack.push(try self.stack.top().?.alloc_copy(self.allocator)),
+            .OP_CONST => try self.stack.push(try self.constants[self.fetch() catch return error.MalformedCode].alloc_copy(self.allocator)),
+            .OP_COPY => try self.stack.push(try self.stack.top().?.alloc_copy(self.allocator)),
 
-                .OP_STARTSCOPE => try self.new_scope(),
-                .OP_ENDSCOPE => try self.deinit_scope(),
+            .OP_STARTSCOPE => try self.new_scope(),
+            .OP_ENDSCOPE => try self.deinit_scope(),
 
-                .OP_DEFVAR => {
-                    // We do not touch refcount here as popping and adding it to scope would cancel out
-                    try self.current_scope.append(try self.pop());
-                },
+            .OP_DEFVAR => {
+                // We do not touch refcount here as popping and adding it to scope would cancel out
+                try self.current_scope.append(try self.pop());
+            },
 
-                .OP_PUSHVAR => {
-                    const v = try self.getvar(try self.fetch(), try self.fetch());
-                    v.refcount += 1;
-                    try self.stack.push(v);
-                },
+            .OP_PUSHVAR => {
+                const v = try self.getvar(try self.fetch(), try self.fetch());
+                v.refcount += 1;
+                try self.stack.push(v);
+            },
 
-                .OP_DROP => {
+            .OP_DROP => {
+                const v = try self.pop();
+                self.release(v);
+            },
+
+            .OP_DUP => {
+                const v = self.stack.top() orelse return error.MalformedCode;
+                v.refcount += 1;
+                try self.stack.push(v);
+            },
+
+            .OP_SWAP => {
+                // This would not touch the refcounts since we do not consume the values themselves.
+                const a = try self.pop();
+                const b = try self.pop();
+                try self.stack.push(a);
+                try self.stack.push(b);
+            },
+
+            .OP_CREATEARRAY => try self.stack.push(try self.reserveArray(try self.fetch16(u16))),
+            .OP_INITARRAY => {
+                const arrsize: u16 = try self.fetch16(u16);
+                const arrvalue = try self.reserveArray(arrsize);
+
+                for (0..arrsize) |i| {
                     const v = try self.pop();
+                    defer self.release(v);
+                    arrvalue.data.Array[arrsize - i - 1] = try v.copy();
+                }
+
+                try self.stack.push(arrvalue);
+            },
+
+            .OP_RGET => {
+                const indx = try self.popExpect(.Int);
+                const arr = try self.popExpect(.Array);
+                defer {
+                    self.release(indx);
+                    self.release(arr);
+                }
+                try self.stack.push(try (try arr.at(indx.data.Int)).alloc_copy(self.allocator));
+            },
+
+            .OP_RSET => {
+                const v = try self.pop();
+                const indx = try self.popExpect(.Int);
+                const arr = try self.popExpect(.Array);
+                defer {
                     self.release(v);
-                },
+                    self.release(indx);
+                    self.release(arr);
+                }
 
-                .OP_DUP => {
-                    const v = self.stack.top() orelse return error.MalformedCode;
-                    v.refcount += 1;
-                    try self.stack.push(v);
-                },
+                try arr.setAt(try v.copy(), indx.data.Int);
+            },
 
-                .OP_SWAP => {
-                    // This would not touch the refcounts since we do not consume the values themselves.
-                    const a = try self.pop();
-                    const b = try self.pop();
-                    try self.stack.push(a);
-                    try self.stack.push(b);
-                },
+            .OP_CGET => {
+                const arr = try self.popExpect(.Array);
+                defer self.release(arr);
+                try self.stack.push(try (try arr.at(try self.fetch16(u16))).alloc_copy(self.allocator));
+            },
 
-                .OP_CREATEARRAY => try self.stack.push(try self.reserveArray(try self.fetch16(u16))),
-                .OP_INITARRAY => {
-                    const arrsize: u16 = try self.fetch16(u16);
-                    const arrvalue = try self.reserveArray(arrsize);
+            .OP_CSET => {
+                const v = try self.pop();
+                const arr = try self.popExpect(.Array);
+                defer {
+                    self.release(v);
+                    self.release(arr);
+                }
+                try arr.setAt(try v.copy(), try self.fetch16(u16));
+            },
 
-                    for (0..arrsize) |i| {
-                        const v = try self.pop();
-                        defer self.release(v);
-                        arrvalue.data.Array[arrsize - i - 1] = try v.copy();
-                    }
+            .OP_SIZE => {
+                const top = try self.pop();
+                defer self.release(top);
 
-                    try self.stack.push(arrvalue);
-                },
+                try self.stack.push(try self.makeValue(.{ .Int = @intCast(top.size) }));
+            },
 
-                .OP_RGET => {
-                    const indx = try self.popExpect(.Int);
-                    const arr = try self.popExpect(.Array);
-                    defer {
-                        self.release(indx);
-                        self.release(arr);
-                    }
-                    try self.stack.push(try (try arr.at(indx.data.Int)).alloc_copy(self.allocator));
-                },
+            .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
 
-                .OP_RSET => {
-                    const v = try self.pop();
-                    const indx = try self.popExpect(.Int);
-                    const arr = try self.popExpect(.Array);
-                    defer {
-                        self.release(v);
-                        self.release(indx);
-                        self.release(arr);
-                    }
+            .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_MOD, 
+            .OP_LESS, .OP_MORE, .OP_EQMORE, .OP_EQLESS, 
+            .OP_EQL, .OP_NEQL, .OP_AND, .OP_OR => try self.stack.push( try self.binOp(opc) ),
 
-                    try arr.setAt(try v.copy(), indx.data.Int);
-                },
-
-                .OP_CGET => {
-                    const arr = try self.popExpect(.Array);
-                    defer self.release(arr);
-                    try self.stack.push(try (try arr.at(try self.fetch16(u16))).alloc_copy(self.allocator));
-                },
-
-                .OP_CSET => {
-                    const v = try self.pop();
-                    const arr = try self.popExpect(.Array);
-                    defer {
-                        self.release(v);
-                        self.release(arr);
-                    }
-                    try arr.setAt(try v.copy(), try self.fetch16(u16));
-                },
-
-                .OP_SIZE => {
-                    const top = try self.pop();
-                    defer self.release(top);
-
-                    try self.stack.push(try self.makeValue(.{ .Int = @intCast(top.size) }));
-                },
-
-                .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
-
-                .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_MOD, 
-                .OP_LESS, .OP_MORE, .OP_EQMORE, .OP_EQLESS, 
-                .OP_EQL, .OP_NEQL, .OP_AND, .OP_OR => try self.stack.push( try self.binOp(opc) ),
-
-                .OP_JMP => try self.jump(try self.fetch16(i16)),
-                .OP_CALL => {
-                    const offs: i16 = try self.fetch16(i16);
+            .OP_JMP => try self.jump(try self.fetch16(i16)),
+            .OP_CALL => {
+                const offs: i16 = try self.fetch16(i16);
+                try self.callstack.push(self.pc);
+                try self.jump(offs);
+            },
+            .OP_TJMP => {
+                const offs: i16 = try self.fetch16(i16);
+                const x = try self.stack.pop();
+                defer self.release(x);
+                if (x.kind() != .Bool) return error.MismatchedTypes;
+                if (x.data.Bool) try self.jump(offs);
+            },
+            .OP_TCALL => {
+                const offs: i16 = try self.fetch16(i16);
+                const x = try self.stack.pop();
+                defer self.release(x);
+                if (x.kind() != .Bool) return error.MismatchedTypes;
+                if (x.data.Bool) {
                     try self.callstack.push(self.pc);
                     try self.jump(offs);
-                },
-                .OP_TJMP => {
-                    const offs: i16 = try self.fetch16(i16);
-                    const x = try self.stack.pop();
-                    defer self.release(x);
-                    if (x.kind() != .Bool) return error.MismatchedTypes;
-                    if (x.data.Bool) try self.jump(offs);
-                },
-                .OP_TCALL => {
-                    const offs: i16 = try self.fetch16(i16);
-                    const x = try self.stack.pop();
-                    defer self.release(x);
-                    if (x.kind() != .Bool) return error.MismatchedTypes;
-                    if (x.data.Bool) {
-                        try self.callstack.push(self.pc);
-                        try self.jump(offs);
-                    }
-                },
+                }
+            },
 
-                .OP_RET => {
-                    // Return if there is an address on the callstack, but quit if there is none
-                    self.pc = self.callstack.pop() catch return;
-                },
-                else => return error.MalformedCode,
-            }
+            .OP_RET => {
+                // Return if there is an address on the callstack, but quit if there is none
+                self.pc = self.callstack.pop() catch return false;
+            },
+            else => return error.MalformedCode,
         }
+        return true;
+    }
+
+    pub fn run(self: *Vm, reader: anytype) !void {
+        while (try self.step(reader)) {}
     }
 };
 
