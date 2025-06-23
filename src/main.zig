@@ -12,8 +12,24 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
+    const file_data = [_]u8{
+        0xef, 0xbe, 0xad, 0xde,
+        0x03, 0x00, 0x00, 0x00,
+        @intFromEnum(opc.OP_INPUT),
+        @intFromEnum(opc.OP_DUMP),
+        @intFromEnum(opc.OP_RET),
+        1, 0x41, 0x42, 0x43, 0x00,
+    };
+
+    var file = try std.fs.cwd().createFile("test.bin", .{});
+    const writer = file.writer();
+    try writer.writeAll(&file_data);
+    file.close();
+
     var program = try loader.readFile(allocator, "test.bin");
     defer program.deinit();
+
+    try std.fs.cwd().deleteFile("test.bin");
 
     var vm = try core.Vm.init(allocator, &program);
     defer vm.deinit();
