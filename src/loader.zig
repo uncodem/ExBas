@@ -45,7 +45,7 @@ pub fn readReader(allocator: std.mem.Allocator, reader: anytype) !Program {
 
     if (magic_test != MAGIC_NUMBER) return error.InvalidProgram;
 
-    const codesize: usize = @intCast(try reader.readInt(u32, .little));
+    const codesize: usize = @as(usize, try reader.readInt(u32, .little));
     if (codesize == 0 or codesize > MAX_SIZE) return error.InvalidProgram;
 
     ret.code = try allocator.alloc(u8, codesize);
