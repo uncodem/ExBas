@@ -63,11 +63,8 @@ pub fn main() !void {
 
         try writer.print("Constants:\n", .{});
         debug.dumpConstants(program);
-        try writer.print("\nCode:\nADDR\tVALUE(0x...)\n", .{});
-        for (0.., program.code) |i, x| {
-            try writer.print("{d}\t{x}\n", .{i, x});
-        }
-
+        std.debug.print("\nCode:\nADDR\tOPCODE\tOPERAND\n", .{});
+        try debug.dumpCode(program);
     }  else {
         print_usage(prog_path, command);
     }
