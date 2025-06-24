@@ -2,6 +2,7 @@ const std = @import("std");
 const core = @import("core.zig");
 const loader = @import("loader.zig");
 const opcodes = @import("opcodes.zig");
+const debug = @import("debug.zig");
 
 const opc = opcodes.VmOpcode;
 
@@ -26,7 +27,10 @@ pub fn main() !void {
         return;
     };
 
-    const filename = args.next().?;
+    const filename = args.next() orelse {
+        print_usage(prog_path, null);
+        return;
+    };
 
     if (std.mem.eql(u8, command, "run")) {
         var program = loader.readFile(allocator, filename) catch |err| {
@@ -44,7 +48,26 @@ pub fn main() !void {
 
         try vm.run(std.io.getStdIn().reader());
     } else if (std.mem.eql(u8, command, "dump")) {
-        // TODO: dump code
+        var program = loader.readFile(allocator, filename) catch |err| {
+            if (err == error.FileNotFound) {
+                std.debug.print("Unable to open file : {s}\n", .{filename});
+                return;
+            } else {
+                return err;
+            }
+        };
+        defer program.deinit();
+
+        // Dumps to stderr for now, will dump to stdout when Value.dump() is reworked.
+        const writer = std.io.getStdErr().writer();
+
+        try writer.print("Constants:\n", .{});
+        debug.dumpConstants(program);
+        try writer.print("\nCode:\nADDR\tVALUE(0x...)\n", .{});
+        for (0.., program.code) |i, x| {
+            try writer.print("{d}\t{x}\n", .{i, x});
+        }
+
     }  else {
         print_usage(prog_path, command);
     }
