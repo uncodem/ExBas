@@ -207,8 +207,8 @@ pub const Vm = struct {
         return self.makeValue(data);
     }
 
-    pub fn step(self: *Vm, reader: anytype)  !bool {
-        const opc: VmOpcode = @enumFromInt(try self.fetch());
+    pub fn step(self: *Vm, reader: anytype) !bool {
+        const opc = std.meta.intToEnum(VmOpcode, try self.fetch()) catch return error.InvalidOpcode;
         switch (opc) {
             .OP_DUMP => {
                 var x = try self.pop();
