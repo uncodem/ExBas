@@ -60,10 +60,9 @@ pub fn main() !void {
 
         // Dumps to stderr for now, will dump to stdout when Value.dump() is reworked.
         const writer = std.io.getStdErr().writer();
-
         try writer.print("Constants:\n", .{});
         debug.dumpConstants(program);
-        std.debug.print("\nCode:\nADDR\tOPCODE\tOPERAND\n", .{});
+        try writer.print("\nCode:\n", .{});
         try debug.dumpCode(program);
     }  else {
         print_usage(prog_path, command);

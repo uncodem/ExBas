@@ -47,8 +47,7 @@ pub fn countOperands(opc: Opcode) !u8 {
     };
 }
 
-pub fn dumpOpcode(raw_opc: u8) ![]const u8 {
-    const opc: Opcode = std.meta.intToEnum(Opcode, raw_opc) catch return error.InvalidOpcode;
+pub fn dumpOpcode(opc: Opcode) []const u8 {
     return @tagName(opc);
 }
 
@@ -64,23 +63,29 @@ pub fn dumpConstants(program: Program) void {
 
 pub fn dumpCode(program: Program) !void {
     var iter = BytecodeIter.init(program.code);
-
     var operand_count: u8 = 0;
+
+    std.debug.print("{s:<4}  {s:<16}  {s}\n", .{"ADDR", "OPCODE", "OPERANDS"});
+
     while (iter.next()) |x| {
         if (operand_count == 0) {
-            std.debug.print("{x:04}:\t", .{iter.offset()});
+            const addr = iter.offset();
             const opc = std.meta.intToEnum(Opcode, x) catch {
-                std.debug.print("INVALID OPCODE {x:02}\n", .{x});
+                std.debug.print("{X:04}  {s:<16}({X:02})\n", .{addr, "INVALID OPCODE", x});
                 continue;
             };
-            std.debug.print("{s}\t", .{ try dumpOpcode(x)});
+            std.debug.print("{X:04}  {s:<16}  ", .{addr, dumpOpcode(opc)});
             operand_count = try countOperands(opc);
         } else {
-            std.debug.print("{x:02} ", .{x});
+            std.debug.print("{X:02} ", .{x});
             operand_count -= 1;
         }
-        if (operand_count == 0) std.debug.print("\n", .{});
+
+        if (operand_count == 0) {
+            std.debug.print("\n", .{});
+        }
     }
     if (operand_count != 0) return error.MalformedProgram;
 }
+
 
