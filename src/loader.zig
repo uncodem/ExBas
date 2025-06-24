@@ -170,14 +170,14 @@ test "src/loader.zig readFile" {
         1, 0x41, 0x42, 0x43, 0x00,
     };
 
-    var file = try std.fs.cwd().createFile("test.bin", .{});
+    var file = try std.fs.cwd().createFile("_readfile_test.bin", .{});
     const writer = file.writer();
     try writer.writeAll(&file_data);
     file.close();
 
-    var program = try readFile(std.testing.allocator, "test.bin");
+    var program = try readFile(std.testing.allocator, "_readfile_test.bin");
     defer program.deinit();
-    try std.fs.cwd().deleteFile("test.bin");
+    try std.fs.cwd().deleteFile("_readfile_test.bin");
 
     for (file_data[8..11], program.code) |x, y| {
         try expect(x == y);
