@@ -156,3 +156,34 @@ test "src/loader.zig oversized program readReader" {
     const result = readReader(std.testing.allocator, bufstream.reader());
     try std.testing.expectError(error.InvalidProgram, result);
 }
+
+test "src/loader.zig readFile" {
+    const opcodes = @import("opcodes.zig");
+    const opc = opcodes.VmOpcode;
+
+    const file_data = [_]u8{
+        0xef, 0xbe, 0xad, 0xde,
+        0x03, 0x00, 0x00, 0x00,
+        @intFromEnum(opc.OP_INPUT),
+        @intFromEnum(opc.OP_DUMP),
+        @intFromEnum(opc.OP_RET),
+        1, 0x41, 0x42, 0x43, 0x00,
+    };
+
+    var file = try std.fs.cwd().createFile("test.bin", .{});
+    const writer = file.writer();
+    try writer.writeAll(&file_data);
+    file.close();
+
+    var program = try readFile(std.testing.allocator, "test.bin");
+    defer program.deinit();
+    try std.fs.cwd().deleteFile("test.bin");
+
+    for (file_data[8..11], program.code) |x, y| {
+        try expect(x == y);
+    }
+
+    try expect(program.constants.items.len == 1);
+    try expect(program.constants.items[0].kind() == .String);
+}
+
