@@ -74,9 +74,8 @@ let rec parse_literal st =
     | _ -> Error UnexpectedToken
 
 and parse_factor st = 
-    match parse_literal st with
-        | Error e -> Error e
-        | Ok (left, st') -> parse_factor_loop left st'
+    let* (left, st') = parse_literal st in
+    parse_factor_loop left st'
 
 and parse_factor_loop left st = 
     match peek st with
@@ -90,9 +89,8 @@ and parse_factor_loop left st =
         | None -> Ok (left, st)
 
 and parse_term st = 
-    match parse_factor st with
-        | Error e -> Error e
-        | Ok (left, st') -> parse_term_loop left st'
+    let* (left, st') = parse_factor st in
+    parse_term_loop left st'
 
 and parse_term_loop left st = 
     match peek st with
@@ -107,11 +105,9 @@ and parse_term_loop left st =
 
 let parse_expr = parse_term
 
-let parse_all st = 
-    match parse_expr st with
-        | Ok (node, st') ->
-            (match peek st' with
-                | Some _ -> Error UnexpectedToken
-                | None -> Ok node)
-        | Error e -> Error e
+let parse_all st =
+    let* (node, st') = parse_expr st in
+    match peek st' with
+        | Some _ -> Error UnexpectedToken
+        | None -> Ok node
 
