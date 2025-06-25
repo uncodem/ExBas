@@ -334,6 +334,13 @@ pub const Vm = struct {
             .OP_LESS, .OP_MORE, .OP_EQMORE, .OP_EQLESS, 
             .OP_EQL, .OP_NEQL, .OP_AND, .OP_OR => try self.stack.push( try self.binOp(opc) ),
 
+            .OP_NOT => {
+                const old_v = try self.popExpect(.Bool);
+                defer self.release(old_v);
+                const new_v = try self.makeValue(.{.Bool = !old_v.data.Bool});
+                try self.stack.push(new_v);
+            },
+
             .OP_JMP => try self.jump(try self.fetch16(i16)),
             .OP_CALL => {
                 const offs: i16 = try self.fetch16(i16);
