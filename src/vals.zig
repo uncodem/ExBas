@@ -63,16 +63,16 @@ pub const Value = struct {
         return ret;
     }
 
-    pub fn dump(self: Value) void {
+    pub fn dump(self: Value, writer: anytype) !void {
         switch (self.data) {
-            .String => |x| std.debug.print("StrValue({s})\n", .{x}),
-            .Int => |x| std.debug.print("IntValue({d})\n", .{x}),
-            .Float => |x| std.debug.print("FloatValue({d})\n", .{x}),
+            .String => |x| try writer.print("StrValue({s})\n", .{x}),
+            .Int => |x| try writer.print("IntValue({d})\n", .{x}),
+            .Float => |x| try writer.print("FloatValue({d})\n", .{x}),
             .Bool => |x| {
                 const ch: u8 = if (x) 'T' else 'F';
-                std.debug.print("BoolValue({c})\n", .{ch});
+                try writer.print("BoolValue({c})\n", .{ch});
             },
-            .Array => |x| for (x) |item| item.dump(),
+            .Array => |x| for (x) |item| try item.dump(writer),
         }
     }
 

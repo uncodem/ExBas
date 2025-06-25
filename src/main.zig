@@ -46,7 +46,10 @@ pub fn main() !void {
         var vm = try core.Vm.init(allocator, &program);
         defer vm.deinit();
 
-        try vm.run(std.io.getStdIn().reader());
+        const stdout = std.io.getStdOut().writer();
+        const stdin = std.io.getStdIn().reader();
+
+        try vm.run(stdout, stdin);
     } else if (std.mem.eql(u8, command, "dump")) {
         var program = loader.readFile(allocator, filename) catch |err| {
             if (err == error.FileNotFound) {
@@ -58,12 +61,11 @@ pub fn main() !void {
         };
         defer program.deinit();
 
-        // Dumps to stderr for now, will dump to stdout when Value.dump() is reworked.
-        const writer = std.io.getStdErr().writer();
+        const writer = std.io.getStdOut().writer();
         try writer.print("Constants:\n", .{});
-        debug.dumpConstants(program);
+        try debug.dumpConstants(writer, program);
         try writer.print("\nCode:\n", .{});
-        try debug.dumpCode(program);
+        try debug.dumpCode(writer, program);
     }  else {
         print_usage(prog_path, command);
     }

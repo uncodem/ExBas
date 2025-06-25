@@ -207,13 +207,13 @@ pub const Vm = struct {
         return self.makeValue(data);
     }
 
-    pub fn step(self: *Vm, reader: anytype) !bool {
+    pub fn step(self: *Vm, writer: anytype, reader: anytype) !bool {
         const opc = std.meta.intToEnum(VmOpcode, try self.fetch()) catch return error.InvalidOpcode;
         switch (opc) {
             .OP_DUMP => {
                 var x = try self.pop();
                 defer self.release(x);
-                x.dump();
+                try x.dump(writer);
             },
 
             .OP_INPUT => {
@@ -367,8 +367,8 @@ pub const Vm = struct {
         return true;
     }
 
-    pub fn run(self: *Vm, reader: anytype) !void {
-        while (try self.step(reader)) {}
+    pub fn run(self: *Vm, writer: anytype, reader: anytype) !void {
+        while (try self.step(writer, reader)) {}
     }
 };
 

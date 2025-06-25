@@ -51,38 +51,36 @@ pub fn dumpOpcode(opc: Opcode) []const u8 {
     return @tagName(opc);
 }
 
-pub fn dumpConstants(program: Program) void {
-    // TODO: rework Value to have a dump function that works for any writer
-    // Currently, Value.dump() simply writes to stderr
-    if (program.constants.items.len == 0) { std.debug.print("No constants.\n", .{}); return; }
+pub fn dumpConstants(writer: anytype, program: Program) !void {
+    if (program.constants.items.len == 0) { try writer.print("No constants.\n", .{}); return; }
     for (0.., program.constants.items) |i, val| {
-        std.debug.print("{d}. ", .{i});
-        val.dump();
+        try writer.print("{d}. ", .{i});
+        try val.dump(writer);
     }
 }
 
-pub fn dumpCode(program: Program) !void {
+pub fn dumpCode(writer: anytype, program: Program) !void {
     var iter = BytecodeIter.init(program.code);
     var operand_count: u8 = 0;
 
-    std.debug.print("{s:<4}  {s:<16}  {s}\n", .{"ADDR", "OPCODE", "OPERANDS"});
+    try writer.print("{s:<4}  {s:<16}  {s}\n", .{"ADDR", "OPCODE", "OPERANDS"});
 
     while (iter.next()) |x| {
         if (operand_count == 0) {
             const addr = iter.offset();
             const opc = std.meta.intToEnum(Opcode, x) catch {
-                std.debug.print("{X:04}  {s:<16}({X:02})\n", .{addr, "INVALID OPCODE", x});
+                try writer.print("{X:04}  {s:<16}({X:02})\n", .{addr, "INVALID OPCODE", x});
                 continue;
             };
-            std.debug.print("{X:04}  {s:<16}  ", .{addr, dumpOpcode(opc)});
+            try writer.print("{X:04}  {s:<16}  ", .{addr, dumpOpcode(opc)});
             operand_count = try countOperands(opc);
         } else {
-            std.debug.print("{X:02} ", .{x});
+            try writer.print("{X:02} ", .{x});
             operand_count -= 1;
         }
 
         if (operand_count == 0) {
-            std.debug.print("\n", .{});
+            try writer.print("\n", .{});
         }
     }
     if (operand_count != 0) return error.MalformedProgram;
