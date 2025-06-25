@@ -1,3 +1,5 @@
 let () = 
-    Lexer.lexer_init "print 12+4 !asdasd@@@!@SD sad2"
-    |> List.iter Lexer.print_token
+    let res = Lexer.lexer_init "12*4-2/2" |> Parser.parser_init |> Parser.parse_all in
+    match res with
+        | Ok a -> print_endline (Parser.string_of_ast a)
+        | Error _ -> print_endline "Errored out"
