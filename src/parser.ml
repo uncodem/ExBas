@@ -31,6 +31,7 @@ type binop =
 
 type ast_node =
     | Number of int
+    | Unary of binop * ast_node
     | Binary of binop * ast_node * ast_node
 
 let is_number = function
@@ -54,6 +55,7 @@ let binop_of_char = function
 let rec string_of_ast = function
     | Number x -> string_of_int x
     | Binary (a, x, y) ->  "(" ^ (string_of_binop a) ^ " " ^ (string_of_ast x) ^ " " ^ (string_of_ast y) ^ ")"
+    | Unary (a, x) -> "(" ^ (string_of_binop a) ^ " " ^ (string_of_ast x) ^ ")"
 
 let parser_init toks =
     {stream = Array.of_list toks; indx = 0}
@@ -73,8 +75,16 @@ let rec parse_literal st =
             Ok (node, st3')
     | _ -> Error UnexpectedToken
 
+and parse_unary st =
+    match peek st with
+        | Some (Lexer.Oper '-') ->
+            let _, st' = next st in 
+            let* (node, st2') = parse_unary st' in
+            Ok (Unary (Sub, node), st2')
+        | _ -> parse_literal st
+
 and parse_factor st = 
-    let* (left, st') = parse_literal st in
+    let* (left, st') = parse_unary st in
     parse_factor_loop left st'
 
 and parse_factor_loop left st = 
@@ -83,7 +93,7 @@ and parse_factor_loop left st =
             (match binop_of_char c with 
                 | Some (Mul | Div as op) -> 
                     let _, st' = next st in 
-                    let* (right, st2') = parse_literal st' in parse_factor_loop (Binary (op, left, right)) st2'
+                    let* (right, st2') = parse_unary st' in parse_factor_loop (Binary (op, left, right)) st2'
                 | _ -> Ok (left, st))
         | Some _ -> Ok (left, st)
         | None -> Ok (left, st)
