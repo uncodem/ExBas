@@ -58,12 +58,14 @@ let rec string_of_ast = function
 let parser_init toks =
     {stream = Array.of_list toks; indx = 0}
 
-let parse_literal st = 
-    let res = expect st is_number in
-        match res with
-            | Error e -> Error e
-            | Ok (Lexer.Number t, st') -> Ok ((Number t), st')
-            | _ -> Error UnexpectedToken
+let parse_literal st =
+    match expect st is_number with
+        | Ok (tok, st') -> 
+            (match tok with
+                | Lexer.Number t -> Ok (Number t, st')
+                (* Unreachable *)
+                | _ -> Error UnexpectedToken)
+        | Error e -> Error e
 
 let rec parse_factor st = 
     match parse_literal st with
