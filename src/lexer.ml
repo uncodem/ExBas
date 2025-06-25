@@ -2,6 +2,8 @@ type token =
     | Ident of string * int * int 
     | Number of int
     | Oper of char
+    | LParen 
+    | RParen
     | Illegal of string * int * int * int
 
 type lexerstate = {
@@ -33,10 +35,12 @@ let print_token = function
     | Number x -> print_endline ("Number(" ^ (string_of_int x) ^ ")")
     | Oper x -> print_endline ("Oper(" ^ (String.make 1 x) ^ ")")
     | Illegal (s, x, y, _) -> print_endline ("Illegal(" ^ (String.sub s x y) ^ ")")
+    | LParen -> print_endline "LParen"
+    | RParen -> print_endline "RParen"
 
 let rec lex_none ({position; line_number; _} as state) =
     match peek state with
-        | Some c when Char.code c = 10 ->
+        | Some '\n' ->
             {state with line_number = line_number + 1}
             |> lexer_advance
             |> lex_none
@@ -48,6 +52,11 @@ let rec lex_none ({position; line_number; _} as state) =
             |> lex_none
         | Some c when is_digit c -> lex_number state 0
         | Some c when is_alpha c -> lex_ident state position 0
+        | Some c when c = '(' || c = ')' -> 
+            (if c = '(' then LParen else RParen)
+            |> add_token state
+            |> lexer_advance
+            |> lex_none
         | Some _ -> lex_illegal state position 0 line_number 
         | None -> state.tokens
 
