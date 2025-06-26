@@ -1,0 +1,10 @@
+profile=default
+version=0.27.0
+break-cases=toplevel
+break-collection-expressions=wrap
+function-indent=4
+extension-indent=4
+let-binding-indent=4
+type-decl-indent=4
+infix-precedence=parens
+margin=80
