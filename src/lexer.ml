@@ -9,6 +9,8 @@ type token =
     | Comma of token_pos
     | Illegal of string * token_pos
     | EndStmt of token_pos
+    | BeginBlock of token_pos
+    | EndBlock of token_pos
 
 type lexerstate = {
     code : string;
@@ -61,6 +63,8 @@ let print_token = function
     | RParen _ -> print_endline "RParen"
     | Comma _ -> print_endline "Comma"
     | EndStmt _ -> print_endline "EndStmt"
+    | BeginBlock _ -> print_endline "BeginBlock"
+    | EndBlock _ -> print_endline "EndBlock"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -75,6 +79,8 @@ let errorstring_of_token = function
     | RParen line -> "RParen ) of line " ^ string_of_int line
     | Comma line -> "Comma , of line " ^ string_of_int line
     | EndStmt line -> "EndStmt in line " ^ string_of_int line
+    | BeginBlock line -> "Begin of line " ^ string_of_int line
+    | EndBlock line -> "End of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -85,6 +91,9 @@ let rec lex_none ({ position; line_number; _ } as state) =
         |> lexer_advance |> lex_none
     | Some ';' ->
         add_token_advance state (EndStmt line_number)
+        |> lex_none
+    | Some c when c = '[' || c = ']' ->
+        add_token_advance state (if c = '[' then (BeginBlock line_number) else (EndBlock line_number))
         |> lex_none
     | Some c when Char.code c <= 32 -> lex_none (lexer_advance state)
     | Some c when is_oper c ->

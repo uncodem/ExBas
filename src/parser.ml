@@ -45,6 +45,13 @@ let expect_endstmt st =
             | _ -> false)
         "Expected end of statement."
 
+let expect_endblock st =
+    expect st
+        (function
+            | Lexer.EndBlock _ -> true
+            | _ -> false)
+        "Expected end of block."
+
 type binop = Add | Sub | Mul | Div
 
 type ast_node =
@@ -52,10 +59,7 @@ type ast_node =
     | Unary of binop * ast_node
     | Binary of binop * ast_node * ast_node
     | Statement of string * ast_node list
-
-let is_number = function
-    | Lexer.Number _ -> true
-    | _ -> false
+    | Block of ast_node list
 
 let string_of_binop = function
     | Add -> "+"
@@ -80,6 +84,8 @@ let rec string_of_ast = function
         let param_strs = List.map string_of_ast params in
         let body = String.concat " " (call :: param_strs) in
         "(" ^ body ^ ")"
+    | Block stmts ->
+        "[" ^ (String.concat " " (List.map string_of_ast stmts)) ^ "]"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -93,14 +99,26 @@ let rec parse_literal st =
     match tok with
     | Some (Lexer.Number (x, _)) -> Ok (Number x, st')
     | Some (Lexer.LParen _) ->
-        let* node, st2' = parse_term st' in
+        let* node, st2' = parse_expr st' in
         let* _, st3' = expect_rparen st2' in
         Ok (node, st3')
+    | Some (Lexer.BeginBlock _) -> parse_block st'
     | Some x ->
         Error
           (UnexpectedToken
              (x, "Expected a literal (number or parenthesized expression)."))
     | None -> Error UnexpectedEOF
+
+and parse_block st = 
+    let _, st' = next st in (* Consume beginblock *)
+    let* stmts, st2' = parse_stmts st' in
+    let* _, st3' = expect_endblock st2' in
+    Ok (Block stmts, st3')
+
+and parse_expr st =
+    match peek st with
+    | Some (Lexer.BeginBlock _) -> parse_block st
+    | _ -> parse_term st
 
 and parse_unary st =
     match peek st with
@@ -142,9 +160,7 @@ and parse_term_loop left st =
     | Some _ -> Ok (left, st)
     | None -> Ok (left, st)
 
-let parse_expr = parse_term
-
-let rec parse_param_list_loop st acc =
+and parse_param_list_loop st acc =
     let* expr, st' = parse_expr st in
     match peek st' with
     | Some (Lexer.Comma _) ->
@@ -152,7 +168,7 @@ let rec parse_param_list_loop st acc =
         parse_param_list_loop st2' (expr :: acc)
     | _ -> Ok (expr :: acc |> List.rev, st')
 
-let parse_param_list st =
+and parse_param_list st =
     let* _, st' = expect_lparen st in
     match peek st' with
     | Some (Lexer.RParen _) ->
@@ -163,9 +179,9 @@ let parse_param_list st =
         let* _, st3' = expect_rparen st2' in
         Ok (params, st3')
 
-let parse_stmt st =
-    let* tok, st' = expect_ident st in
-    let* (tok, st3') = (match tok with
+and parse_stmt st =
+    let* ident, st' = expect_ident st in
+    let* (tok, st3') = (match ident with
     | Lexer.Ident (token_name, _) ->
         let* param_list, st2' = parse_param_list st' in
         Ok (Statement (token_name, param_list), st2')
@@ -173,16 +189,21 @@ let parse_stmt st =
     let* _, st4' = expect_endstmt st3' in
     Ok (tok, st4')
 
-let parse_all st =
-    let rec parse_all_aux st acc =
+and parse_stmts st =
+    let rec parse_stmts_aux st acc =
         match peek st with
-        | None -> Ok (List.rev acc)
-        | Some (Lexer.EndStmt _) -> let _, st' = next st in parse_all_aux st' acc
+        | None -> Ok (List.rev acc, st)
+        | Some (Lexer.EndBlock _) -> Ok (List.rev acc, st)
+        | Some (Lexer.EndStmt _) -> let _, st' = next st in parse_stmts_aux st' acc
         | Some _ -> 
             let* stmt, st' = parse_stmt st in
-            parse_all_aux st' (stmt :: acc)
+            parse_stmts_aux st' (stmt :: acc)
     in
-    parse_all_aux st []
+    parse_stmts_aux st []
+
+let parse_all st = 
+    let* (stmts, _) = parse_stmts st in
+    Ok (stmts)
 
 let parser_report = function
     | UnexpectedEOF -> print_endline "parser: UnexpectedEOF"
