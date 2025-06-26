@@ -33,6 +33,7 @@ type ast_node =
     | Number of int
     | Unary of binop * ast_node
     | Binary of binop * ast_node * ast_node
+    | Statement of string * ast_node list
 
 let is_number = function
     | Lexer.Number _ -> true
@@ -56,6 +57,10 @@ let rec string_of_ast = function
     | Number x -> string_of_int x
     | Binary (a, x, y) ->  "(" ^ (string_of_binop a) ^ " " ^ (string_of_ast x) ^ " " ^ (string_of_ast y) ^ ")"
     | Unary (a, x) -> "(" ^ (string_of_binop a) ^ " " ^ (string_of_ast x) ^ ")"
+    | Statement (call, params) -> 
+        let param_strs = List.map string_of_ast params in
+        let body = String.concat " " (call :: param_strs) in 
+        "(" ^ body ^ ")"
 
 let parser_init toks =
     {stream = Array.of_list toks; indx = 0}

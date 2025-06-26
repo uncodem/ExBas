@@ -4,6 +4,7 @@ type token =
     | Oper of char
     | LParen 
     | RParen
+    | Comma
     | Illegal of string * int * int * int
 
 type lexerstate = {
@@ -30,6 +31,15 @@ let is_digit = function '0' .. '9' -> true | _ -> false
 let is_alphanum = function '0' .. '9' -> true | c -> is_alpha c
 let is_oper = function '+' | '-' | '*' | '/' | '%' -> true | _ -> false
 
+let is_special_char = function '(' | ')' | ',' -> true | _ -> false
+
+let token_of_special_char = function 
+    | '(' -> Some LParen
+    | ')' -> Some RParen
+    | ',' -> Some Comma
+    | _ -> None
+
+
 let print_token = function
     | Ident (s, x, y) -> print_endline ("Ident(" ^ (String.sub s x y) ^ ")")
     | Number x -> print_endline ("Number(" ^ (string_of_int x) ^ ")")
@@ -37,6 +47,10 @@ let print_token = function
     | Illegal (s, x, y, _) -> print_endline ("Illegal(" ^ (String.sub s x y) ^ ")")
     | LParen -> print_endline "LParen"
     | RParen -> print_endline "RParen"
+    | Comma -> print_endline "Comma"
+
+let add_token_advance state t = 
+    add_token state t |> lexer_advance
 
 let rec lex_none ({position; line_number; _} as state) =
     match peek state with
@@ -45,18 +59,13 @@ let rec lex_none ({position; line_number; _} as state) =
             |> lexer_advance
             |> lex_none
         | Some c when Char.code c <= 32 -> lex_none (lexer_advance state)
-        | Some c when is_oper c -> 
-            Oper c
-            |> add_token state
-            |> lexer_advance
-            |> lex_none
+        | Some c when is_oper c -> lex_none (add_token_advance state (Oper c))
         | Some c when is_digit c -> lex_number state 0
         | Some c when is_alpha c -> lex_ident state position 0
-        | Some c when c = '(' || c = ')' -> 
-            (if c = '(' then LParen else RParen)
-            |> add_token state
-            |> lexer_advance
-            |> lex_none
+        | Some c when is_special_char c -> 
+            (match token_of_special_char c with
+                | Some t -> lex_none (add_token_advance state t)
+                | None -> assert false)
         | Some _ -> lex_illegal state position 0 line_number 
         | None -> state.tokens
 
