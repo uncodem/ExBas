@@ -120,8 +120,29 @@ and parse_term_loop left st =
 
 let parse_expr = parse_term
 
+let is_ident t =
+    match t with
+        | Lexer.Ident _ -> true
+        | _ -> false
+
+let rec parse_param_list st acc =
+    let* (expr, st') = parse_expr st in
+    match peek st' with
+        | Some Lexer.Comma -> let _, st2' = next st' in parse_param_list st2' (expr :: acc)
+        | _ -> Ok ((expr :: acc) |> List.rev, st')
+
+let parse_stmt st = 
+    let* (tok, st') = expect st is_ident in
+    match tok with
+        | Lexer.Ident (code, i, l) -> 
+            let token_name = String.sub code i l in
+            let* (param_list, st2') = parse_param_list st' [] in
+            Ok ((Statement (token_name, param_list)), st2')
+        | _ -> assert false (* Unreachable *)
+
+
 let parse_all st =
-    let* (node, st') = parse_expr st in
+    let* (node, st') = parse_stmt st in
     match peek st' with
         | Some _ -> Error UnexpectedToken
         | None -> Ok node
