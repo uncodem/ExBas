@@ -38,6 +38,13 @@ let expect_ident st =
         | _ -> false)
       "Expected Identifier."
 
+let expect_endstmt st =
+    expect st
+        (function 
+            | Lexer.EndStmt _ -> true 
+            | _ -> false)
+        "Expected end of statement."
+
 type binop = Add | Sub | Mul | Div
 
 type ast_node =
@@ -158,17 +165,24 @@ let parse_param_list st =
 
 let parse_stmt st =
     let* tok, st' = expect_ident st in
-    match tok with
+    let* (tok, st3') = (match tok with
     | Lexer.Ident (token_name, _) ->
         let* param_list, st2' = parse_param_list st' in
         Ok (Statement (token_name, param_list), st2')
-    | _ -> assert false (* Unreachable *)
+    | _ -> assert false) in
+    let* _, st4' = expect_endstmt st3' in
+    Ok (tok, st4')
 
 let parse_all st =
-    let* node, st' = parse_stmt st in
-    match peek st' with
-    | Some x -> Error (UnexpectedToken (x, "Expected end of input."))
-    | None -> Ok node
+    let rec parse_all_aux st acc =
+        match peek st with
+        | None -> Ok (List.rev acc)
+        | Some (Lexer.EndStmt _) -> let _, st' = next st in parse_all_aux st' acc
+        | Some _ -> 
+            let* stmt, st' = parse_stmt st in
+            parse_all_aux st' (stmt :: acc)
+    in
+    parse_all_aux st []
 
 let parser_report = function
     | UnexpectedEOF -> print_endline "parser: UnexpectedEOF"
