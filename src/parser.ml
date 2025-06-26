@@ -13,14 +13,14 @@ let next st =
         | None -> None, st
 
 type parser_error =
-    | UnexpectedToken
+    | UnexpectedToken of Lexer.token
     | UnexpectedEOF
 
 let expect st pred = 
     let (tok, st') = next st in
         match tok with 
             | Some tok when pred tok -> Ok (tok, st')
-            | Some _ -> Error UnexpectedToken
+            | Some x -> Error (UnexpectedToken x)
             | None -> Error UnexpectedEOF
 
 type binop = 
@@ -78,7 +78,8 @@ let rec parse_literal st =
             let* (node, st2') = parse_term st' in
             let* (_, st3') = expect st2' (function Lexer.RParen -> true | _ -> false) in
             Ok (node, st3')
-    | _ -> Error UnexpectedToken
+        | Some x -> Error (UnexpectedToken x)
+        | None -> Error UnexpectedEOF
 
 and parse_unary st =
     match peek st with
@@ -154,6 +155,14 @@ let parse_stmt st =
 let parse_all st =
     let* (node, st') = parse_stmt st in
     match peek st' with
-        | Some _ -> Error UnexpectedToken
+        | Some x -> Error (UnexpectedToken x)
         | None -> Ok node
+
+let parser_report = function
+    | UnexpectedEOF -> print_endline "parser: UnexpectedEOF"
+    | UnexpectedToken x -> 
+        print_string "parser: UnexpectedToken ";
+        Lexer.print_token x;
+        print_newline ();
+
 
