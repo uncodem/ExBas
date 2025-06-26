@@ -73,17 +73,17 @@ let ( let* ) r f =
 let rec parse_literal st =
     let tok, st' = next st in
     match tok with
-        | Some (Lexer.Number x) -> Ok (Number x, st')
-        | Some Lexer.LParen ->
+        | Some (Lexer.Number (x, _)) -> Ok (Number x, st')
+        | Some (Lexer.LParen _) ->
             let* (node, st2') = parse_term st' in
-            let* (_, st3') = expect st2' (function Lexer.RParen -> true | _ -> false) in
+            let* (_, st3') = expect st2' (function Lexer.RParen _ -> true | _ -> false) in
             Ok (node, st3')
         | Some x -> Error (UnexpectedToken x)
         | None -> Error UnexpectedEOF
 
 and parse_unary st =
     match peek st with
-        | Some (Lexer.Oper '-') ->
+        | Some (Lexer.Oper ('-', _)) ->
             let _, st' = next st in 
             let* (node, st2') = parse_unary st' in
             Ok (Unary (Sub, node), st2')
@@ -95,7 +95,7 @@ and parse_factor st =
 
 and parse_factor_loop left st = 
     match peek st with
-        | Some (Oper c) -> 
+        | Some (Lexer.Oper (c, _)) -> 
             (match binop_of_char c with 
                 | Some (Mul | Div as op) -> 
                     let _, st' = next st in 
@@ -110,7 +110,7 @@ and parse_term st =
 
 and parse_term_loop left st = 
     match peek st with
-        | Some (Oper c) -> 
+        | Some (Lexer.Oper (c, _)) -> 
             (match binop_of_char c with 
                 | Some (Add | Sub as op) -> 
                     let _, st' = next st in 
@@ -129,24 +129,23 @@ let is_ident t =
 let rec parse_param_list_loop st acc =
     let* (expr, st') = parse_expr st in
     match peek st' with
-        | Some Lexer.Comma -> let _, st2' = next st' in parse_param_list_loop st2' (expr :: acc)
+        | Some (Lexer.Comma _) -> let _, st2' = next st' in parse_param_list_loop st2' (expr :: acc)
         | _ -> Ok ((expr :: acc) |> List.rev, st')
 
 let parse_param_list st = 
-    let* (_, st') = expect st (function Lexer.LParen -> true | _ -> false) in
+    let* (_, st') = expect st (function Lexer.LParen _ -> true | _ -> false) in
     match peek st' with
-        | Some Lexer.RParen -> 
+        | Some (Lexer.RParen _) -> 
             let (_, st2') = next st' in Ok ([], st2')
         | _ -> 
             let* (params, st2') = parse_param_list_loop st' [] in
-            let* (_, st3') = expect st2' (function Lexer.RParen -> true | _ -> false) in
+            let* (_, st3') = expect st2' (function Lexer.RParen _ -> true | _ -> false) in
             Ok (params, st3')
 
 let parse_stmt st = 
     let* (tok, st') = expect st is_ident in
     match tok with
-        | Lexer.Ident (code, i, l) -> 
-            let token_name = String.sub code i l in
+        | Lexer.Ident (token_name, _) -> 
             let* (param_list, st2') = parse_param_list st' in
             Ok ((Statement (token_name, param_list)), st2')
         | _ -> assert false (* Unreachable *)
@@ -161,8 +160,6 @@ let parse_all st =
 let parser_report = function
     | UnexpectedEOF -> print_endline "parser: UnexpectedEOF"
     | UnexpectedToken x -> 
-        print_string "parser: UnexpectedToken ";
-        Lexer.print_token x;
-        print_newline ();
+        print_endline ("parser: UnexpectedToken " ^ (Lexer.errorstring_of_token x))
 
 
