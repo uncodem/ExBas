@@ -1,6 +1,6 @@
 let () =
     let res =
-        Lexer.lexer_init "random_functoin (); input (12, 23, [pint (12, 23); output (); ]);"
+        Lexer.lexer_init "random_functoin (); input (12, 23, [pint (12, 23); output (45, [other ();]); ]);"
         |> Parser.parser_init |> Parser.parse_all
     in
     match res with
