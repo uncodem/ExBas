@@ -8,8 +8,8 @@ let next st =
     | Some t -> (Some t, { st with indx = st.indx + 1 })
     | None -> (None, st)
 
-let print_parserstate {stream; indx} =
-    let arr = Array.sub stream indx ((Array.length stream) - indx) in
+let print_parserstate { stream; indx } =
+    let arr = Array.sub stream indx (Array.length stream - indx) in
     Array.iter Lexer.print_token arr
 
 type parser_error = UnexpectedToken of Lexer.token * string | UnexpectedEOF
@@ -44,19 +44,31 @@ let expect_ident st =
 
 let expect_endstmt st =
     expect st
-        (function 
-            | Lexer.EndStmt _ -> true 
-            | _ -> false)
-        "Expected end of statement."
+      (function
+        | Lexer.EndStmt _ -> true
+        | _ -> false)
+      "Expected end of statement."
 
 let expect_endblock st =
     expect st
-        (function
-            | Lexer.EndBlock _ -> true
-            | _ -> false)
-        "Expected end of block."
+      (function
+        | Lexer.EndBlock _ -> true
+        | _ -> false)
+      "Expected end of block."
 
-type binop = Add | Sub | Mul | Div | Assign | Eql | Neql | More | Less | EqMore | EqLess | Not
+type binop =
+    | Add
+    | Sub
+    | Mul
+    | Div
+    | Assign
+    | Eql
+    | Neql
+    | More
+    | Less
+    | EqMore
+    | EqLess
+    | Not
 
 type ast_node =
     | Number of int
@@ -107,11 +119,11 @@ let rec string_of_ast = function
         let body = String.concat " " (call :: param_strs) in
         "(" ^ body ^ ")"
     | Block stmts ->
-        "[" ^ (String.concat " " (List.map string_of_ast stmts)) ^ "]"
+        "[" ^ String.concat " " (List.map string_of_ast stmts) ^ "]"
     | Var x -> x
     | Call (call, params) ->
         let param_strs = List.map string_of_ast params in
-        let body = String.concat " " ( call :: param_strs ) in
+        let body = String.concat " " (call :: param_strs) in
         "(" ^ body ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
@@ -130,27 +142,25 @@ let rec parse_literal st =
         let* _, st3' = expect_rparen st2' in
         Ok (node, st3')
     | Some (Lexer.BeginBlock _) -> parse_block st'
-    | Some (Lexer.Ident (x, _)) -> parse_ident st' x 
+    | Some (Lexer.Ident (x, _)) -> parse_ident st' x
     | Some x ->
         Error
           (UnexpectedToken
              (x, "Expected a literal (number or parenthesized expression)."))
     | None -> Error UnexpectedEOF
 
-and parse_expr st =
-    parse_comparison st
+and parse_expr st = parse_comparison st
 
 and parse_ident st ident =
     match peek st with
-    | Some (Lexer.LParen _) -> 
+    | Some (Lexer.LParen _) ->
         let _, st' = next st in
-        let* (param_list, st2') = parse_param_list_loop st' [] in
-        let* (_, st3') = expect_rparen st2' in
+        let* param_list, st2' = parse_param_list_loop st' [] in
+        let* _, st3' = expect_rparen st2' in
         Ok (Call (ident, param_list), st3')
-    | _ ->
-        Ok (Var ident, st)
+    | _ -> Ok (Var ident, st)
 
-and parse_block st = 
+and parse_block st =
     let* stmts, st' = parse_stmts st in
     let* _, st2' = expect_endblock st' in
     Ok (Block stmts, st2')
@@ -234,14 +244,14 @@ and parse_param_list st =
         let* _, st3' = expect_rparen st2' in
         Ok (params, st3')
 
-and parse_stmt st = 
+and parse_stmt st =
     let* ident_tok, st' = expect_ident st in
-    let token_name = 
+    let token_name =
         match ident_tok with
         | Lexer.Ident (name, _) -> name
         | _ -> assert false
     in
-    let* param_list, st2' = parse_param_list st' in 
+    let* param_list, st2' = parse_param_list st' in
     let* _, st3' = expect_endstmt st2' in
     Ok (Statement (token_name, param_list), st3')
 
@@ -250,16 +260,18 @@ and parse_stmts st =
         match peek st with
         | None -> Ok (List.rev acc, st)
         | Some (Lexer.EndBlock _) -> Ok (List.rev acc, st)
-        | Some (Lexer.EndStmt _) -> let _, st' = next st in parse_stmts_aux st' acc
-        | Some _ -> 
+        | Some (Lexer.EndStmt _) ->
+            let _, st' = next st in
+            parse_stmts_aux st' acc
+        | Some _ ->
             let* stmt, st' = parse_stmt st in
             parse_stmts_aux st' (stmt :: acc)
     in
     parse_stmts_aux st []
 
-let parse_all st = 
-    let* (stmts, _) = parse_stmts st in
-    Ok (stmts)
+let parse_all st =
+    let* stmts, _ = parse_stmts st in
+    Ok stmts
 
 let parser_report = function
     | UnexpectedEOF -> print_endline "parser: UnexpectedEOF"

@@ -82,8 +82,7 @@ let errorstring_of_token = function
         "Identifier \"" ^ s ^ "\" of line " ^ string_of_int line
     | Number (x, line) ->
         "Number " ^ string_of_int x ^ " of line " ^ string_of_int line
-    | Oper (x, line) ->
-        "Operator " ^ x ^ " of line " ^ string_of_int line
+    | Oper (x, line) -> "Operator " ^ x ^ " of line " ^ string_of_int line
     | Illegal (s, line) ->
         "Illegal token \"" ^ s ^ "\" of line " ^ string_of_int line
     | LParen line -> "LParen ( of line " ^ string_of_int line
@@ -103,13 +102,15 @@ let add_token_advance state t = add_token state t |> lexer_advance
 let rec lex_none ({ position; line_number; _ } as state) =
     match peek state with
     | Some '\n' ->
-        { (add_token state (EndStmt line_number)) with line_number = line_number + 1 }
+        {
+          (add_token state (EndStmt line_number)) with
+          line_number = line_number + 1;
+        }
         |> lexer_advance |> lex_none
-    | Some ';' ->
-        add_token_advance state (EndStmt line_number)
-        |> lex_none
+    | Some ';' -> add_token_advance state (EndStmt line_number) |> lex_none
     | Some c when c = '[' || c = ']' ->
-        add_token_advance state (if c = '[' then (BeginBlock line_number) else (EndBlock line_number))
+        add_token_advance state
+          (if c = '[' then BeginBlock line_number else EndBlock line_number)
         |> lex_none
     | Some c when Char.code c <= 32 -> lex_none (lexer_advance state)
     | Some c when is_oper c -> lex_oper (lexer_advance state) (String.make 1 c)
@@ -154,13 +155,17 @@ and lex_number state acc =
 and lex_oper state acc =
     let next = peek state in
     match acc.[0] with
-    | '=' -> 
-        (match next with
-        | Some '=' -> lex_none (add_token_advance state (Oper (acc ^ "=", state.line_number)))
+    | '=' -> (
+        match next with
+        | Some '=' ->
+            lex_none
+              (add_token_advance state (Oper (acc ^ "=", state.line_number)))
         | _ -> lex_none (add_token state (Oper (acc, state.line_number))))
-    | '!' | '>' | '<' ->
-        (match next with
-        | Some '=' -> lex_none (add_token_advance state (Oper (acc ^ "=", state.line_number)))
+    | '!' | '>' | '<' -> (
+        match next with
+        | Some '=' ->
+            lex_none
+              (add_token_advance state (Oper (acc ^ "=", state.line_number)))
         | _ -> lex_none (add_token state (Oper (acc, state.line_number))))
     | _ -> lex_none (add_token state (Oper (acc, state.line_number)))
 
@@ -169,15 +174,14 @@ let lexer_init code =
 
 let convert_token t =
     match t with
-    | Ident (x, pos) -> 
-        (match x with 
-         | "if" -> If pos
-         | "then" -> Then pos
-         | "begin" -> BeginBlock pos
-         | "end" -> EndBlock pos
-         | "let" -> Let pos
-         | "sub" -> Sub pos
-         | "else" -> Else pos
-         | _ -> t)
+    | Ident (x, pos) -> (
+        match x with
+        | "if" -> If pos
+        | "then" -> Then pos
+        | "begin" -> BeginBlock pos
+        | "end" -> EndBlock pos
+        | "let" -> Let pos
+        | "sub" -> Sub pos
+        | "else" -> Else pos
+        | _ -> t)
     | _ -> t
-

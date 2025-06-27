@@ -28,4 +28,3 @@ val print_token : token -> unit
 
 val errorstring_of_token : token -> string
 (** Stringifies token for error messages *)
-

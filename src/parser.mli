@@ -1,9 +1,19 @@
-
 type parserstate
-
 type parser_error = UnexpectedToken of Lexer.token * string | UnexpectedEOF
 
-type binop = Add | Sub | Mul | Div | Assign | Eql | Neql | More | Less | EqMore | EqLess | Not
+type binop =
+    | Add
+    | Sub
+    | Mul
+    | Div
+    | Assign
+    | Eql
+    | Neql
+    | More
+    | Less
+    | EqMore
+    | EqLess
+    | Not
 
 type ast_node =
     | Number of int
@@ -28,4 +38,3 @@ val string_of_ast : ast_node -> string
 
 val print_parserstate : parserstate -> unit
 (** Prints current parser token stream for debugging *)
-
