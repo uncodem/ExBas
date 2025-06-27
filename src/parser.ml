@@ -8,6 +8,10 @@ let next st =
     | Some t -> (Some t, { st with indx = st.indx + 1 })
     | None -> (None, st)
 
+let print_parserstate {stream; indx} =
+    let arr = Array.sub stream indx ((Array.length stream) - indx) in
+    Array.iter Lexer.print_token arr
+
 type parser_error = UnexpectedToken of Lexer.token * string | UnexpectedEOF
 
 let expect st pred fail_string =
@@ -60,6 +64,8 @@ type ast_node =
     | Binary of binop * ast_node * ast_node
     | Statement of string * ast_node list
     | Block of ast_node list
+    | Call of string * ast_node list
+    | Var of string
 
 let string_of_binop = function
     | Add -> "+"
@@ -86,6 +92,11 @@ let rec string_of_ast = function
         "(" ^ body ^ ")"
     | Block stmts ->
         "[" ^ (String.concat " " (List.map string_of_ast stmts)) ^ "]"
+    | Var x -> x
+    | Call (call, params) ->
+        let param_strs = List.map string_of_ast params in
+        let body = String.concat " " ( call :: param_strs ) in
+        "(" ^ body ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -99,26 +110,32 @@ let rec parse_literal st =
     match tok with
     | Some (Lexer.Number (x, _)) -> Ok (Number x, st')
     | Some (Lexer.LParen _) ->
-        let* node, st2' = parse_expr st' in
+        let* node, st2' = parse_term st' in
         let* _, st3' = expect_rparen st2' in
         Ok (node, st3')
     | Some (Lexer.BeginBlock _) -> parse_block st'
+    | Some (Lexer.Ident (x, _)) -> parse_ident st' x 
     | Some x ->
         Error
           (UnexpectedToken
              (x, "Expected a literal (number or parenthesized expression)."))
     | None -> Error UnexpectedEOF
 
+and parse_ident st ident =
+    match peek st with
+    | Some (Lexer.LParen _) -> 
+        let _, st' = next st in
+        let* (param_list, st2') = parse_param_list_loop st' [] in
+        let* (_, st3') = expect_rparen st2' in
+        Ok (Call (ident, param_list), st3')
+    | _ ->
+        Ok (Var ident, st)
+
 and parse_block st = 
     let _, st' = next st in (* Consume beginblock *)
     let* stmts, st2' = parse_stmts st' in
     let* _, st3' = expect_endblock st2' in
     Ok (Block stmts, st3')
-
-and parse_expr st =
-    match peek st with
-    | Some (Lexer.BeginBlock _) -> parse_block st
-    | _ -> parse_term st
 
 and parse_unary st =
     match peek st with
@@ -161,7 +178,7 @@ and parse_term_loop left st =
     | None -> Ok (left, st)
 
 and parse_param_list_loop st acc =
-    let* expr, st' = parse_expr st in
+    let* expr, st' = parse_term st in
     match peek st' with
     | Some (Lexer.Comma _) ->
         let _, st2' = next st' in
@@ -179,15 +196,16 @@ and parse_param_list st =
         let* _, st3' = expect_rparen st2' in
         Ok (params, st3')
 
-and parse_stmt st =
-    let* ident, st' = expect_ident st in
-    let* (tok, st3') = (match ident with
-    | Lexer.Ident (token_name, _) ->
-        let* param_list, st2' = parse_param_list st' in
-        Ok (Statement (token_name, param_list), st2')
-    | _ -> assert false) in
-    let* _, st4' = expect_endstmt st3' in
-    Ok (tok, st4')
+and parse_stmt st = 
+    let* ident_tok, st' = expect_ident st in
+    let token_name = 
+        match ident_tok with
+        | Lexer.Ident (name, _) -> name
+        | _ -> assert false
+    in
+    let* param_list, st2' = parse_param_list st' in 
+    let* _, st3' = expect_endstmt st2' in
+    Ok (Statement (token_name, param_list), st3')
 
 and parse_stmts st =
     let rec parse_stmts_aux st acc =
