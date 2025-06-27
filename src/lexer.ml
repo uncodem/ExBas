@@ -3,7 +3,7 @@ type token_pos = int
 type token =
     | Ident of string * token_pos
     | Number of int * token_pos
-    | Oper of char * token_pos
+    | Oper of string * token_pos
     | LParen of token_pos
     | RParen of token_pos
     | Comma of token_pos
@@ -42,6 +42,7 @@ let is_alphanum = function
 
 let is_oper = function
     | '+' | '-' | '*' | '/' | '%' -> true
+    | '=' | '>' | '<' | '!' -> true
     | _ -> false
 
 let is_special_char = function
@@ -57,7 +58,7 @@ let token_of_special_char state = function
 let print_token = function
     | Ident (s, _) -> print_endline ("Ident(" ^ s ^ ")")
     | Number (x, _) -> print_endline ("Number(" ^ string_of_int x ^ ")")
-    | Oper (x, _) -> print_endline ("Oper(" ^ String.make 1 x ^ ")")
+    | Oper (x, _) -> print_endline ("Oper(" ^ x ^ ")")
     | Illegal (s, _) -> print_endline ("Illegal(" ^ s ^ ")")
     | LParen _ -> print_endline "LParen"
     | RParen _ -> print_endline "RParen"
@@ -72,7 +73,7 @@ let errorstring_of_token = function
     | Number (x, line) ->
         "Number " ^ string_of_int x ^ " of line " ^ string_of_int line
     | Oper (x, line) ->
-        "Operator " ^ String.make 1 x ^ " of line " ^ string_of_int line
+        "Operator " ^ x ^ " of line " ^ string_of_int line
     | Illegal (s, line) ->
         "Illegal token \"" ^ s ^ "\" of line " ^ string_of_int line
     | LParen line -> "LParen ( of line " ^ string_of_int line
@@ -80,7 +81,7 @@ let errorstring_of_token = function
     | Comma line -> "Comma , of line " ^ string_of_int line
     | EndStmt line -> "EndStmt in line " ^ string_of_int line
     | BeginBlock line -> "Begin of line " ^ string_of_int line
-    | EndBlock line -> "End of line " ^ string_of_int line
+    | EndBlock line -> "EndBlock of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -96,8 +97,7 @@ let rec lex_none ({ position; line_number; _ } as state) =
         add_token_advance state (if c = '[' then (BeginBlock line_number) else (EndBlock line_number))
         |> lex_none
     | Some c when Char.code c <= 32 -> lex_none (lexer_advance state)
-    | Some c when is_oper c ->
-        lex_none (add_token_advance state (Oper (c, line_number)))
+    | Some c when is_oper c -> lex_oper (lexer_advance state) (String.make 1 c)
     | Some c when is_digit c -> lex_number state 0
     | Some c when is_alpha c -> lex_ident state position 0
     | Some c when is_special_char c -> (
@@ -135,6 +135,19 @@ and lex_number state acc =
         let new_acc = (acc * 10) + digit in
         lex_number (lexer_advance state) new_acc
     | _ -> lex_none (add_token state (Number (acc, state.line_number)))
+
+and lex_oper state acc =
+    let next = peek state in
+    match acc.[0] with
+    | '=' -> 
+        (match next with
+        | Some '=' -> lex_none (add_token_advance state (Oper (acc ^ "=", state.line_number)))
+        | _ -> lex_none (add_token state (Oper (acc, state.line_number))))
+    | '!' | '>' | '<' ->
+        (match next with
+        | Some '=' -> lex_none (add_token_advance state (Oper (acc ^ "=", state.line_number)))
+        | _ -> lex_none (add_token state (Oper (acc, state.line_number))))
+    | _ -> lex_none (add_token_advance state (Oper (acc, state.line_number)))
 
 let lexer_init code =
     lex_none { code; position = 0; tokens = []; line_number = 1 } |> List.rev

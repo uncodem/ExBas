@@ -56,7 +56,7 @@ let expect_endblock st =
             | _ -> false)
         "Expected end of block."
 
-type binop = Add | Sub | Mul | Div
+type binop = Add | Sub | Mul | Div | Assign | Eql | Neql | More | Less | EqMore | EqLess
 
 type ast_node =
     | Number of int
@@ -72,12 +72,26 @@ let string_of_binop = function
     | Sub -> "-"
     | Mul -> "*"
     | Div -> "/"
+    | Assign -> "="
+    | Eql -> "=="
+    | Neql -> "!="
+    | More -> ">"
+    | Less -> "<"
+    | EqMore -> ">="
+    | EqLess -> "<="
 
-let binop_of_char = function
-    | '+' -> Some Add
-    | '-' -> Some Sub
-    | '*' -> Some Mul
-    | '/' -> Some Div
+let binop_of_str = function
+    | "+" -> Some Add
+    | "-" -> Some Sub
+    | "*" -> Some Mul
+    | "/" -> Some Div
+    | "=" -> Some Assign
+    | "==" -> Some Eql
+    | "!=" -> Some Neql
+    | ">" -> Some More
+    | "<" -> Some Less
+    | ">=" -> Some EqMore
+    | "<=" -> Some EqLess
     | _ -> None
 
 let rec string_of_ast = function
@@ -139,7 +153,7 @@ and parse_block st =
 
 and parse_unary st =
     match peek st with
-    | Some (Lexer.Oper ('-', _)) ->
+    | Some (Lexer.Oper ("-", _)) ->
         let _, st' = next st in
         let* node, st2' = parse_unary st' in
         Ok (Unary (Sub, node), st2')
@@ -152,7 +166,7 @@ and parse_factor st =
 and parse_factor_loop left st =
     match peek st with
     | Some (Lexer.Oper (c, _)) -> (
-        match binop_of_char c with
+        match binop_of_str c with
         | Some ((Mul | Div) as op) ->
             let _, st' = next st in
             let* right, st2' = parse_unary st' in
@@ -168,7 +182,7 @@ and parse_term st =
 and parse_term_loop left st =
     match peek st with
     | Some (Lexer.Oper (c, _)) -> (
-        match binop_of_char c with
+        match binop_of_str c with
         | Some ((Add | Sub) as op) ->
             let _, st' = next st in
             let* right, st2' = parse_factor st' in

@@ -7,7 +7,7 @@ let read_lines fname =
             close_in ic; 
             String.concat "\n" (List.rev acc)
     in 
-    aux []
+    (aux []) ^ "\n"
 
 let () =
     let res = 
