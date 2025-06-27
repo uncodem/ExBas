@@ -10,10 +10,13 @@ let read_lines fname =
     (aux []) ^ "\n"
 
 let () =
+    let tokens = Lexer.lexer_init (read_lines "test.txt") in
     let res = 
-        Lexer.lexer_init (read_lines "test.txt") 
+        tokens
         |> Parser.parser_init |> Parser.parse_all
     in
+    List.iter Lexer.print_token tokens;
+    print_endline "---";
     match res with
     | Ok a -> List.iter (fun node -> print_endline (Parser.string_of_ast node)) a
     | Error e -> Parser.parser_report e

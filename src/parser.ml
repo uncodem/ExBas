@@ -146,10 +146,9 @@ and parse_ident st ident =
         Ok (Var ident, st)
 
 and parse_block st = 
-    let _, st' = next st in (* Consume beginblock *)
-    let* stmts, st2' = parse_stmts st' in
-    let* _, st3' = expect_endblock st2' in
-    Ok (Block stmts, st3')
+    let* stmts, st' = parse_stmts st in
+    let* _, st2' = expect_endblock st' in
+    Ok (Block stmts, st2')
 
 and parse_unary st =
     match peek st with
