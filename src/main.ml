@@ -10,7 +10,7 @@ let read_lines fname =
     (aux []) ^ "\n"
 
 let () =
-    let tokens = Lexer.lexer_init (read_lines "test.txt") in
+    let tokens = Lexer.lexer_init (read_lines "test.txt") |> List.map Lexer.convert_token in
     let res = 
         tokens
         |> Parser.parser_init |> Parser.parse_all

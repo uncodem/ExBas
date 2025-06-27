@@ -11,6 +11,11 @@ type token =
     | EndStmt of token_pos
     | BeginBlock of token_pos
     | EndBlock of token_pos
+    | If of token_pos
+    | Then of token_pos
+    | Else of token_pos
+    | Let of token_pos
+    | Sub of token_pos
 
 type lexerstate = {
     code : string;
@@ -66,6 +71,11 @@ let print_token = function
     | EndStmt _ -> print_endline "EndStmt"
     | BeginBlock _ -> print_endline "BeginBlock"
     | EndBlock _ -> print_endline "EndBlock"
+    | If _ -> print_endline "If"
+    | Then _ -> print_endline "Then"
+    | Else _ -> print_endline "Else"
+    | Sub _ -> print_endline "Sub"
+    | Let _ -> print_endline "Let"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -82,6 +92,11 @@ let errorstring_of_token = function
     | EndStmt line -> "EndStmt in line " ^ string_of_int line
     | BeginBlock line -> "Begin of line " ^ string_of_int line
     | EndBlock line -> "EndBlock of line " ^ string_of_int line
+    | If line -> "If of line " ^ string_of_int line
+    | Then line -> "Then of line " ^ string_of_int line
+    | Else line -> "Else of line " ^ string_of_int line
+    | Let line -> "Let of line " ^ string_of_int line
+    | Sub line -> "Sub of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -151,3 +166,18 @@ and lex_oper state acc =
 
 let lexer_init code =
     lex_none { code; position = 0; tokens = []; line_number = 1 } |> List.rev
+
+let convert_token t =
+    match t with
+    | Ident (x, pos) -> 
+        (match x with 
+         | "if" -> If pos
+         | "then" -> Then pos
+         | "begin" -> BeginBlock pos
+         | "end" -> EndBlock pos
+         | "let" -> Let pos
+         | "sub" -> Sub pos
+         | "else" -> Else pos
+         | _ -> t)
+    | _ -> t
+
