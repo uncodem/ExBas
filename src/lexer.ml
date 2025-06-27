@@ -147,7 +147,7 @@ and lex_oper state acc =
         (match next with
         | Some '=' -> lex_none (add_token_advance state (Oper (acc ^ "=", state.line_number)))
         | _ -> lex_none (add_token state (Oper (acc, state.line_number))))
-    | _ -> lex_none (add_token_advance state (Oper (acc, state.line_number)))
+    | _ -> lex_none (add_token state (Oper (acc, state.line_number)))
 
 let lexer_init code =
     lex_none { code; position = 0; tokens = []; line_number = 1 } |> List.rev
