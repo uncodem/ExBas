@@ -56,7 +56,7 @@ let expect_endblock st =
             | _ -> false)
         "Expected end of block."
 
-type binop = Add | Sub | Mul | Div | Assign | Eql | Neql | More | Less | EqMore | EqLess
+type binop = Add | Sub | Mul | Div | Assign | Eql | Neql | More | Less | EqMore | EqLess | Not
 
 type ast_node =
     | Number of int
@@ -79,6 +79,7 @@ let string_of_binop = function
     | Less -> "<"
     | EqMore -> ">="
     | EqLess -> "<="
+    | Not -> "!" (* Not necessarily binop, but here anyways *)
 
 let binop_of_str = function
     | "+" -> Some Add
@@ -92,6 +93,7 @@ let binop_of_str = function
     | "<" -> Some Less
     | ">=" -> Some EqMore
     | "<=" -> Some EqLess
+    | "!" -> Some Not
     | _ -> None
 
 let rec string_of_ast = function
@@ -124,7 +126,7 @@ let rec parse_literal st =
     match tok with
     | Some (Lexer.Number (x, _)) -> Ok (Number x, st')
     | Some (Lexer.LParen _) ->
-        let* node, st2' = parse_term st' in
+        let* node, st2' = parse_expr st' in
         let* _, st3' = expect_rparen st2' in
         Ok (node, st3')
     | Some (Lexer.BeginBlock _) -> parse_block st'
@@ -134,6 +136,9 @@ let rec parse_literal st =
           (UnexpectedToken
              (x, "Expected a literal (number or parenthesized expression)."))
     | None -> Error UnexpectedEOF
+
+and parse_expr st =
+    parse_comparison st
 
 and parse_ident st ident =
     match peek st with
@@ -156,6 +161,10 @@ and parse_unary st =
         let _, st' = next st in
         let* node, st2' = parse_unary st' in
         Ok (Unary (Sub, node), st2')
+    | Some (Lexer.Oper ("!", _)) ->
+        let _, st' = next st in
+        let* node, st2' = parse_unary st' in
+        Ok (Unary (Not, node), st2')
     | _ -> parse_literal st
 
 and parse_factor st =
@@ -190,8 +199,24 @@ and parse_term_loop left st =
     | Some _ -> Ok (left, st)
     | None -> Ok (left, st)
 
+and parse_comparison st =
+    let* left, st' = parse_term st in
+    parse_comparison_loop left st'
+
+and parse_comparison_loop left st =
+    match peek st with
+    | Some (Lexer.Oper (c, _)) -> (
+        match binop_of_str c with
+        | Some ((Eql | Neql | More | Less | EqLess | EqMore) as op) ->
+            let _, st' = next st in
+            let* right, st2' = parse_term st' in
+            parse_term_loop (Binary (op, left, right)) st2'
+        | _ -> Ok (left, st))
+    | Some _ -> Ok (left, st)
+    | None -> Ok (left, st)
+
 and parse_param_list_loop st acc =
-    let* expr, st' = parse_term st in
+    let* expr, st' = parse_expr st in
     match peek st' with
     | Some (Lexer.Comma _) ->
         let _, st2' = next st' in
