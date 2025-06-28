@@ -35,12 +35,12 @@ let expect_rparen st =
         | _ -> false)
       "Expected RParen."
 
-(* let expect_ident st =
+let expect_ident st =
     expect st
       (function
         | Lexer.Ident _ -> true
         | _ -> false)
-      "Expected Identifier." *)
+      "Expected Identifier."
 
 let expect_endstmt st =
     expect st
@@ -70,6 +70,13 @@ let expect_then st =
           | _ -> false)
         "Expected then."
 
+let expect_eql st =
+    expect st 
+        (function
+          | Lexer.Oper ("=", _) -> true
+          | _ -> false)
+        "Expected =."
+
 type binop =
     | Add
     | Sub
@@ -93,6 +100,8 @@ type ast_node =
     | Call of string * ast_node list
     | Var of string
     | If of ast_node * ast_node * ast_node option
+    | Let of string * ast_node
+    | Assign of string * ast_node
 
 let string_of_binop = function
     | Add -> "+"
@@ -146,6 +155,11 @@ let rec string_of_ast = function
             | Some node -> string_of_ast node
             | None -> ""
         ) ^ ")"
+    | Let (left, right) -> 
+        "(let " ^ left ^ " " ^ string_of_ast right ^ ")"
+    | Assign (left, right) ->
+        "(= " ^ left ^ " " ^ string_of_ast right ^ ")"
+
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -170,7 +184,7 @@ let rec parse_literal st =
              (x, "Expected a literal (number or parenthesized expression)."))
     | None -> Error UnexpectedEOF
 
-and parse_expr st = parse_if_expr st
+and parse_expr st = parse_assignment st
 
 and parse_ident st ident =
     match peek st with
@@ -258,6 +272,19 @@ and parse_if_expr st =
         Ok (If (cond, texpr, Some fexpr), st6')
     | _ -> parse_comparison st
 
+and parse_assignment st =
+    let* left, st' = parse_if_expr st in
+    match peek st' with
+    | Some (Lexer.Oper ("=", _)) -> ( 
+        match left with
+        | Var vname ->
+            let _, st2' = next st' in
+            let* rhs, st3' = parse_assignment st2' in
+            Ok (Assign (vname, rhs), st3')
+        | _ -> 
+            Error (UnexpectedToken ((Option.get (peek st')), "Left side of assignment must be variable")))
+    | _ -> Ok (left, st')
+
 and parse_if_stmt st =
     let* cond, st' = parse_expr st in
     let* _, st2' = expect_then st' in
@@ -288,6 +315,15 @@ and parse_param_list st =
         let* _, st3' = expect_rparen st2' in
         Ok (params, st3')
 
+and parse_let_stmt st =
+    let* left, st' = expect_ident st in
+    match left with
+    | Lexer.Ident (ident_name, _) -> 
+        let* _, st2' = expect_eql st' in
+        let* right, st3' = parse_expr st2' in
+        Ok (Let (ident_name, right), st3')
+    | _ -> assert false
+
 and parse_stmt st =
     let tok, st' = next st in
     match tok with
@@ -296,6 +332,7 @@ and parse_stmt st =
         let* _, st3' = expect_endstmt st2' in
         Ok (Statement (name, param_list), st3')
     | Some (Lexer.If _) -> parse_if_stmt st'
+    | Some (Lexer.Let _) -> parse_let_stmt st'
     | Some t -> Lexer.print_token t; Error (UnexpectedToken (t, "Expected Identifier or If statement."))
     | None -> Error UnexpectedEOF
 
