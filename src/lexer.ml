@@ -20,7 +20,7 @@ type token =
     | Return of token_pos
     | While of token_pos
     | For of token_pos
-    | To of token_pos
+    | Step of token_pos
 
 type lexerstate = {
     code : string;
@@ -86,7 +86,7 @@ let print_token = function
     | Return _ -> print_endline "Return"
     | For _ -> print_endline "For"
     | While _ -> print_endline "While"
-    | To _ -> print_endline "To"
+    | Step _ -> print_endline "Step"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -111,7 +111,7 @@ let errorstring_of_token = function
     | Return line -> "Return of line " ^ string_of_int line
     | For line -> "For of line " ^ string_of_int line
     | While line -> "While of line " ^ string_of_int line
-    | To line -> "To of line " ^ string_of_int line
+    | Step line -> "Step of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -202,6 +202,6 @@ let convert_token t =
         | "return" -> Return pos
         | "while" -> While pos
         | "for" -> For pos
-        | "to" -> To pos
+        | "Step" -> Step pos
         | _ -> t)
     | _ -> t

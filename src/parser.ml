@@ -112,6 +112,8 @@ type ast_node =
     | Label of string
     | FuncDef of string * string list * ast_node
     | Return of ast_node option
+    | While of ast_node * ast_node
+    | For of ast_node * ast_node * ast_node * ast_node
 
 let string_of_binop = function
     | Add -> "+"
@@ -178,6 +180,11 @@ let rec string_of_ast = function
         "(return " ^ string_of_ast x ^ ")"
     | Return None ->
         "(return)"
+    | While (cond, body) ->
+        "(while " ^ string_of_ast cond ^ " " ^ string_of_ast body ^ ")"
+    | For (base, dest, step, body) ->
+        let cont = List.map string_of_ast [base; dest; step; body] |> String.concat " " in
+        "(for " ^ cont ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -371,6 +378,12 @@ and parse_sub st =
         Ok (FuncDef (name, param_list, body), st4')
     | _ -> assert false
 
+and parse_while st =
+    let* cond, st' = parse_expr st in
+    let* _, st2' = expect_beginblock st' in
+    let* body, st2' = parse_block st2' in
+    Ok (While (cond, body), st2')
+
 and parse_stmt st =
     let tok, st' = next st in
     match tok with
@@ -389,6 +402,7 @@ and parse_stmt st =
     | Some (Lexer.If _) -> parse_if_stmt st'
     | Some (Lexer.Let _) -> parse_let_stmt st'
     | Some (Lexer.Sub _) -> parse_sub st'
+    | Some (Lexer.While _) -> parse_while st'
     | Some (Lexer.Return _) -> (
         match peek st' with
         | Some (Lexer.EndStmt _) -> Ok (Return None, st')
