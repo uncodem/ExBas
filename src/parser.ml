@@ -327,13 +327,18 @@ and parse_let_stmt st =
 and parse_stmt st =
     let tok, st' = next st in
     match tok with
-    | Some (Lexer.Ident (name, _)) -> 
-        let* param_list, st2' = parse_param_list st' in
-        let* _, st3' = expect_endstmt st2' in
-        Ok (Statement (name, param_list), st3')
+    | Some (Lexer.Ident (name, _)) -> (
+        let t = peek st' in
+        match t with
+        | Some (Lexer.Oper ("=", _)) -> parse_assignment st 
+        | Some (Lexer.LParen _) -> 
+            let* param_list, st2' = parse_param_list st' in
+            let* _, st3' = expect_endstmt st2' in
+            Ok (Statement (name, param_list), st3')
+        | _ -> Error (UnexpectedToken (Option.get t, "Expected either assignment or function call")))
     | Some (Lexer.If _) -> parse_if_stmt st'
     | Some (Lexer.Let _) -> parse_let_stmt st'
-    | Some t -> Lexer.print_token t; Error (UnexpectedToken (t, "Expected Identifier or If statement."))
+    | Some t -> Lexer.print_token t; Error (UnexpectedToken (t, "Expected Identifier, assignment, or if statement."))
     | None -> Error UnexpectedEOF
 
 and parse_stmts st blocked =
