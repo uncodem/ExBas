@@ -16,6 +16,7 @@ type token =
     | Else of token_pos
     | Let of token_pos
     | Sub of token_pos
+    | Colon of token_pos
 
 type lexerstate = {
     code : string;
@@ -51,13 +52,14 @@ let is_oper = function
     | _ -> false
 
 let is_special_char = function
-    | '(' | ')' | ',' -> true
+    | '(' | ')' | ',' | ':' -> true
     | _ -> false
 
-let token_of_special_char state = function
-    | '(' -> Some (LParen state.line_number)
-    | ')' -> Some (RParen state.line_number)
-    | ',' -> Some (Comma state.line_number)
+let token_of_special_char {line_number; _} = function
+    | '(' -> Some (LParen line_number)
+    | ')' -> Some (RParen line_number)
+    | ',' -> Some (Comma line_number)
+    | ':' -> Some (Colon line_number)
     | _ -> None
 
 let print_token = function
@@ -76,6 +78,7 @@ let print_token = function
     | Else _ -> print_endline "Else"
     | Sub _ -> print_endline "Sub"
     | Let _ -> print_endline "Let"
+    | Colon _ -> print_endline ":"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -96,6 +99,7 @@ let errorstring_of_token = function
     | Else line -> "Else of line " ^ string_of_int line
     | Let line -> "Let of line " ^ string_of_int line
     | Sub line -> "Sub of line " ^ string_of_int line
+    | Colon line -> "Colon : of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
