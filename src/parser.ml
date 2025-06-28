@@ -56,6 +56,20 @@ let expect_endblock st =
         | _ -> false)
       "Expected end of block."
 
+let expect_else st =
+    expect st
+        (function 
+          | Lexer.Else _ -> true
+          | _ -> false)
+        "Expected else."
+
+let expect_then st =
+    expect st
+        (function
+          | Lexer.Then _ -> true
+          | _ -> false)
+        "Expected then."
+
 type binop =
     | Add
     | Sub
