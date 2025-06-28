@@ -162,7 +162,7 @@ let rec parse_literal st =
         let* node, st2' = parse_expr st' in
         let* _, st3' = expect_rparen st2' in
         Ok (node, st3')
-    | Some (Lexer.BeginBlock _) -> parse_block st'
+    | Some (Lexer.BeginBlock _) -> parse_block st' 
     | Some (Lexer.Ident (x, _)) -> parse_ident st' x
     | Some x ->
         Error
@@ -182,7 +182,7 @@ and parse_ident st ident =
     | _ -> Ok (Var ident, st)
 
 and parse_block st =
-    let* stmts, st' = parse_stmts st in
+    let* stmts, st' = parse_stmts st true in
     let* _, st2' = expect_endblock st' in
     Ok (Block stmts, st2')
 
@@ -296,14 +296,14 @@ and parse_stmt st =
         let* _, st3' = expect_endstmt st2' in
         Ok (Statement (name, param_list), st3')
     | Some (Lexer.If _) -> parse_if_stmt st'
-    | Some t -> Error (UnexpectedToken (t, "Expected Identifier or If statement."))
+    | Some t -> Lexer.print_token t; Error (UnexpectedToken (t, "Expected Identifier or If statement."))
     | None -> Error UnexpectedEOF
 
-and parse_stmts st =
+and parse_stmts st blocked =
     let rec parse_stmts_aux st acc =
         match peek st with
         | None -> Ok (List.rev acc, st)
-        | Some (Lexer.EndBlock _) -> Ok (List.rev acc, st)
+        | Some (Lexer.EndBlock _) when blocked -> Ok (List.rev acc, st)
         | Some (Lexer.EndStmt _) ->
             let _, st' = next st in
             parse_stmts_aux st' acc
@@ -314,7 +314,7 @@ and parse_stmts st =
     parse_stmts_aux st []
 
 let parse_all st =
-    let* stmts, _ = parse_stmts st in
+    let* stmts, _ = parse_stmts st false in
     Ok stmts
 
 let parser_report = function
