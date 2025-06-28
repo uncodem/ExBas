@@ -23,6 +23,7 @@ type ast_node =
     | Block of ast_node list
     | Call of string * ast_node list
     | Var of string
+    | If of ast_node * ast_node * ast_node option
 
 val parser_init : Lexer.token list -> parserstate
 (** Generates parserstate from token list *)

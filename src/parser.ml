@@ -35,12 +35,12 @@ let expect_rparen st =
         | _ -> false)
       "Expected RParen."
 
-let expect_ident st =
+(* let expect_ident st =
     expect st
       (function
         | Lexer.Ident _ -> true
         | _ -> false)
-      "Expected Identifier."
+      "Expected Identifier." *)
 
 let expect_endstmt st =
     expect st
@@ -92,6 +92,7 @@ type ast_node =
     | Block of ast_node list
     | Call of string * ast_node list
     | Var of string
+    | If of ast_node * ast_node * ast_node option
 
 let string_of_binop = function
     | Add -> "+"
@@ -139,6 +140,12 @@ let rec string_of_ast = function
         let param_strs = List.map string_of_ast params in
         let body = String.concat " " (call :: param_strs) in
         "(" ^ body ^ ")"
+    | If (cond, texpr, fexpr) -> 
+        "(if " ^ string_of_ast cond ^ " " ^ string_of_ast texpr ^ " " ^ (
+            match fexpr with
+            | Some node -> string_of_ast node
+            | None -> ""
+        ) ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -163,7 +170,7 @@ let rec parse_literal st =
              (x, "Expected a literal (number or parenthesized expression)."))
     | None -> Error UnexpectedEOF
 
-and parse_expr st = parse_comparison st
+and parse_expr st = parse_if_expr st
 
 and parse_ident st ident =
     match peek st with
@@ -239,6 +246,29 @@ and parse_comparison_loop left st =
     | Some _ -> Ok (left, st)
     | None -> Ok (left, st)
 
+and parse_if_expr st =
+    match peek st with
+    | Some (Lexer.If _) ->
+        let _, st' = next st in
+        let* cond, st2' = parse_expr st' in
+        let* _, st3' = expect_then st2' in
+        let* texpr, st4' = parse_expr st3' in
+        let* _, st5' = expect_else st4' in
+        let* fexpr, st6' = parse_expr st5' in
+        Ok (If (cond, texpr, Some fexpr), st6')
+    | _ -> parse_comparison st
+
+and parse_if_stmt st =
+    let* cond, st' = parse_expr st in
+    let* _, st2' = expect_then st' in
+    let* texpr, st3' = parse_expr st2' in
+    match peek st3' with
+    | Some (Lexer.Else _) -> 
+        let _, st4' = next st3' in
+        let* fexpr, st5' = parse_expr st4' in
+        Ok (If (cond, texpr, Some fexpr), st5')
+    | _ -> Ok (If (cond, texpr, None), st3')
+
 and parse_param_list_loop st acc =
     let* expr, st' = parse_expr st in
     match peek st' with
@@ -259,15 +289,15 @@ and parse_param_list st =
         Ok (params, st3')
 
 and parse_stmt st =
-    let* ident_tok, st' = expect_ident st in
-    let token_name =
-        match ident_tok with
-        | Lexer.Ident (name, _) -> name
-        | _ -> assert false
-    in
-    let* param_list, st2' = parse_param_list st' in
-    let* _, st3' = expect_endstmt st2' in
-    Ok (Statement (token_name, param_list), st3')
+    let tok, st' = next st in
+    match tok with
+    | Some (Lexer.Ident (name, _)) -> 
+        let* param_list, st2' = parse_param_list st' in
+        let* _, st3' = expect_endstmt st2' in
+        Ok (Statement (name, param_list), st3')
+    | Some (Lexer.If _) -> parse_if_stmt st'
+    | Some t -> Error (UnexpectedToken (t, "Expected Identifier or If statement."))
+    | None -> Error UnexpectedEOF
 
 and parse_stmts st =
     let rec parse_stmts_aux st acc =
