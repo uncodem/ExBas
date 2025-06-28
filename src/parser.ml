@@ -49,6 +49,13 @@ let expect_endstmt st =
         | _ -> false)
       "Expected end of statement."
 
+let expect_beginblock st =
+    expect st 
+      (function
+        | Lexer.BeginBlock _ -> true
+        | _ -> false)
+      "Expected beginning of block."
+
 let expect_endblock st =
     expect st
       (function
@@ -102,6 +109,9 @@ type ast_node =
     | If of ast_node * ast_node * ast_node option
     | Let of string * ast_node
     | Assign of string * ast_node
+    | Label of string
+    | FuncDef of string * string list * ast_node
+    | Return of ast_node option
 
 let string_of_binop = function
     | Add -> "+"
@@ -159,7 +169,15 @@ let rec string_of_ast = function
         "(let " ^ left ^ " " ^ string_of_ast right ^ ")"
     | Assign (left, right) ->
         "(= " ^ left ^ " " ^ string_of_ast right ^ ")"
-
+    | Label name -> 
+        ":" ^ name
+    | FuncDef (name, params, body) ->
+        let param_list = String.concat " " (name :: params) in
+        "(fdef (" ^ param_list ^ ") " ^ string_of_ast body ^ ")"
+    | Return (Some x) ->
+        "(return " ^ string_of_ast x ^ ")"
+    | Return None ->
+        "(return)"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -324,6 +342,35 @@ and parse_let_stmt st =
         Ok (Let (ident_name, right), st3')
     | _ -> assert false
 
+and parse_ident_list_loop st acc =
+    match peek st with
+    | Some (Lexer.Ident (name, _)) ->  
+        let _, st' = next st in (
+            match peek st' with
+            | Some (Lexer.Comma _) ->
+                let _, st2' = next st' in
+                parse_ident_list_loop st2' (name :: acc)
+            | Some (Lexer.RParen _) -> Ok (List.rev (name :: acc), st')
+            | None -> Error UnexpectedEOF
+            | Some t -> Error (UnexpectedToken (t, "Expected either RParen or Comma")))
+    | _ -> Ok (List.rev acc, st)
+
+and parse_ident_list st =
+    let* _, st' = expect_lparen st in
+    let* (ident_list, st2') = parse_ident_list_loop st' [] in
+    let* _, st3' = expect_rparen st2' in
+    Ok (ident_list, st3')
+
+and parse_sub st =
+    let* ident, st' = expect_ident st in
+    match ident with
+    | Lexer.Ident (name, _) -> 
+        let* param_list, st2' = parse_ident_list st' in
+        let* _, st3' = expect_beginblock st2' in
+        let* body, st4' = parse_block st3' in
+        Ok (FuncDef (name, param_list, body), st4')
+    | _ -> assert false
+
 and parse_stmt st =
     let tok, st' = next st in
     match tok with
@@ -335,10 +382,21 @@ and parse_stmt st =
             let* param_list, st2' = parse_param_list st' in
             let* _, st3' = expect_endstmt st2' in
             Ok (Statement (name, param_list), st3')
-        | _ -> Error (UnexpectedToken (Option.get t, "Expected either assignment or function call")))
+        | Some (Lexer.Colon _) ->
+            let _, st2' = next st' in
+            Ok (Label name, st2')
+        | _ -> Error (UnexpectedToken (Option.get t, "Expected either assignment, label, or function call")))
     | Some (Lexer.If _) -> parse_if_stmt st'
     | Some (Lexer.Let _) -> parse_let_stmt st'
-    | Some t -> Lexer.print_token t; Error (UnexpectedToken (t, "Expected Identifier, assignment, or if statement."))
+    | Some (Lexer.Sub _) -> parse_sub st'
+    | Some (Lexer.Return _) -> (
+        match peek st' with
+        | Some (Lexer.EndStmt _) -> Ok (Return None, st')
+        | Some _ ->
+            let* expr, st2' = parse_expr st' in
+            Ok (Return (Some expr), st2')
+        | None -> Error UnexpectedEOF)
+    | Some t -> Error (UnexpectedToken (t, "Expected statement."))
     | None -> Error UnexpectedEOF
 
 and parse_stmts st blocked =

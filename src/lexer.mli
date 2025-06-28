@@ -16,6 +16,8 @@ type token =
     | Else of token_pos
     | Let of token_pos
     | Sub of token_pos
+    | Colon of token_pos
+    | Return of token_pos
 
 val lexer_init : string -> token list
 (** Tokenize source code, into list of tokens *)

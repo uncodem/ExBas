@@ -26,6 +26,9 @@ type ast_node =
     | If of ast_node * ast_node * ast_node option
     | Let of string * ast_node
     | Assign of string * ast_node
+    | Label of string
+    | FuncDef of string * string list * ast_node
+    | Return of ast_node option
 
 val parser_init : Lexer.token list -> parserstate
 (** Generates parserstate from token list *)

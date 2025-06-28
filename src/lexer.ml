@@ -17,6 +17,7 @@ type token =
     | Let of token_pos
     | Sub of token_pos
     | Colon of token_pos
+    | Return of token_pos
 
 type lexerstate = {
     code : string;
@@ -79,6 +80,7 @@ let print_token = function
     | Sub _ -> print_endline "Sub"
     | Let _ -> print_endline "Let"
     | Colon _ -> print_endline ":"
+    | Return _ -> print_endline "Return"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -100,6 +102,7 @@ let errorstring_of_token = function
     | Let line -> "Let of line " ^ string_of_int line
     | Sub line -> "Sub of line " ^ string_of_int line
     | Colon line -> "Colon : of line " ^ string_of_int line
+    | Return line -> "Return of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -187,5 +190,6 @@ let convert_token t =
         | "let" -> Let pos
         | "sub" -> Sub pos
         | "else" -> Else pos
+        | "return" -> Return pos
         | _ -> t)
     | _ -> t
