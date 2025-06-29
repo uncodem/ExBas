@@ -114,6 +114,8 @@ type binop =
 
 type ast_node =
     | Number of int
+    | String of string
+    | Bool of bool 
     | Unary of binop * ast_node
     | Binary of binop * ast_node * ast_node
     | Statement of string * ast_node list
@@ -199,6 +201,9 @@ let rec string_of_ast = function
     | For (base, dest, step, body) ->
         let cont = List.map string_of_ast [base; dest; step; body] |> String.concat " " in
         "(for " ^ cont ^ ")"
+    | String s -> "\"" ^ s ^ "\""
+    | Bool true -> "true"
+    | Bool false -> "false"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -211,6 +216,7 @@ let rec parse_literal st =
     let tok, st' = next st in
     match tok with
     | Some (Lexer.Number (x, _)) -> Ok (Number x, st')
+    | Some (Lexer.String (x, _)) -> Ok (String x, st')
     | Some (Lexer.LParen _) ->
         let* node, st2' = parse_expr st' in
         let* _, st3' = expect_rparen st2' in

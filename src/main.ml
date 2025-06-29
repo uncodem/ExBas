@@ -14,7 +14,7 @@ let () =
         Lexer.lexer_init (read_lines "test.txt") |> List.map Lexer.convert_token
     in
     let res = tokens |> Parser.parser_init |> Parser.parse_all in
-    List.iter Lexer.print_token tokens;
+    List.iter Lexer.print_token tokens; 
     print_endline "---";
     match res with
     | Ok a ->

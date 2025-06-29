@@ -21,6 +21,9 @@ type token =
     | While of token_pos
     | For of token_pos
     | Step of token_pos
+    | String of string * token_pos
+    | True of token_pos
+    | False of token_pos
 
 val lexer_init : string -> token list
 (** Tokenize source code, into list of tokens *)

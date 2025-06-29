@@ -21,6 +21,9 @@ type token =
     | While of token_pos
     | For of token_pos
     | Step of token_pos
+    | String of string * token_pos
+    | True of token_pos
+    | False of token_pos
 
 type lexerstate = {
     code : string;
@@ -87,6 +90,9 @@ let print_token = function
     | For _ -> print_endline "For"
     | While _ -> print_endline "While"
     | Step _ -> print_endline "Step"
+    | String (s, _) -> print_endline ("String(\"" ^ s ^ "\")")
+    | True _ -> print_endline "True"
+    | False _ -> print_endline "False"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -112,6 +118,9 @@ let errorstring_of_token = function
     | For line -> "For of line " ^ string_of_int line
     | While line -> "While of line " ^ string_of_int line
     | Step line -> "Step of line " ^ string_of_int line
+    | String (s, line) -> "String \"" ^ s ^ "\" of line " ^ string_of_int line
+    | True line -> "True of line " ^ string_of_int line
+    | False line -> "False of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -124,6 +133,8 @@ let rec lex_none ({ position; line_number; _ } as state) =
         }
         |> lexer_advance |> lex_none
     | Some ';' -> add_token_advance state (EndStmt line_number) |> lex_none
+    | Some '\'' -> lex_comment state
+    | Some '"' -> lex_string (lexer_advance state) (position+1) 0
     | Some c when c = '[' || c = ']' ->
         add_token_advance state
           (if c = '[' then BeginBlock line_number else EndBlock line_number)
@@ -138,6 +149,16 @@ let rec lex_none ({ position; line_number; _ } as state) =
         | None -> assert false)
     | Some _ -> lex_illegal state position 0 line_number
     | None -> state.tokens
+
+and lex_string state start len =
+    match peek state with
+    | Some '"' -> lex_none (add_token_advance state (String (String.sub state.code start len, state.line_number)))
+    | _ -> lex_string (lexer_advance state) start (len+1) 
+
+and lex_comment state =
+    match peek state with
+    | Some '\n' -> lex_none state
+    | _ -> lex_comment (lexer_advance state)
 
 and lex_illegal state start len line_num =
     match peek state with
@@ -203,5 +224,7 @@ let convert_token t =
         | "while" -> While pos
         | "for" -> For pos
         | "step" -> Step pos
+        | "true" -> True pos
+        | "false" -> False pos
         | _ -> t)
     | _ -> t
