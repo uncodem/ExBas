@@ -24,6 +24,7 @@ type token =
     | String of string * token_pos
     | True of token_pos
     | False of token_pos
+    | Goto of token_pos
 
 type lexerstate = {
     code : string;
@@ -93,6 +94,7 @@ let print_token = function
     | String (s, _) -> print_endline ("String(\"" ^ s ^ "\")")
     | True _ -> print_endline "True"
     | False _ -> print_endline "False"
+    | Goto _ -> print_endline "Goto"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -121,6 +123,7 @@ let errorstring_of_token = function
     | String (s, line) -> "String \"" ^ s ^ "\" of line " ^ string_of_int line
     | True line -> "True of line " ^ string_of_int line
     | False line -> "False of line " ^ string_of_int line
+    | Goto line -> "Goto of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -226,5 +229,6 @@ let convert_token t =
         | "step" -> Step pos
         | "true" -> True pos
         | "false" -> False pos
+        | "goto" -> Goto pos
         | _ -> t)
     | _ -> t

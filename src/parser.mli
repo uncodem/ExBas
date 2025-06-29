@@ -33,6 +33,7 @@ type ast_node =
     | Return of ast_node option
     | While of ast_node * ast_node
     | For of ast_node * ast_node * ast_node * ast_node
+    | Goto of string
 
 val parser_init : Lexer.token list -> parserstate
 (** Generates parserstate from token list *)

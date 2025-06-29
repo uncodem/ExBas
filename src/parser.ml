@@ -98,6 +98,13 @@ let expect_step st =
           | _ -> false)
         "Expected Step."
 
+let expect_colon st =
+    expect st 
+        (function
+          | Lexer.Colon _ -> true 
+          | _ -> false)
+        "Expected Colon."
+
 type binop =
     | Add
     | Sub
@@ -130,6 +137,7 @@ type ast_node =
     | Return of ast_node option
     | While of ast_node * ast_node
     | For of ast_node * ast_node * ast_node * ast_node
+    | Goto of string
 
 let string_of_binop = function
     | Add -> "+"
@@ -204,6 +212,7 @@ let rec string_of_ast = function
     | String s -> "\"" ^ s ^ "\""
     | Bool true -> "true"
     | Bool false -> "false"
+    | Goto label -> "(goto :" ^ label ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -421,6 +430,13 @@ and parse_for st pos =
     | Assign (_, _) -> parse_for_pred st' base 
     | _ -> Error (UnexpectedNode ("Expected assignment or var in for loop", pos))
 
+and parse_goto st =
+    let* _, st' = expect_colon st in
+    let* ident, st2' = expect_ident st' in
+    match ident with
+        | Lexer.Ident (label, _) -> Ok (Goto label, st2')
+        | _ -> assert false
+
 and parse_stmt st =
     let tok, st' = next st in
     match tok with
@@ -441,6 +457,7 @@ and parse_stmt st =
     | Some (Lexer.Sub _) -> parse_sub st'
     | Some (Lexer.While _) -> parse_while st'
     | Some (Lexer.For pos) -> parse_for st' pos
+    | Some (Lexer.Goto _) -> parse_goto st'
     | Some (Lexer.Return _) -> (
         match peek st' with
         | Some (Lexer.EndStmt _) -> Ok (Return None, st')
