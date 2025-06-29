@@ -27,6 +27,7 @@ type token =
     | Goto of token_pos
     | And of token_pos
     | Or of token_pos
+    | Yield of token_pos
 
 type lexerstate = {
     code : string;
@@ -99,6 +100,7 @@ let print_token = function
     | Goto _ -> print_endline "Goto"
     | And _ -> print_endline "And"
     | Or _ -> print_endline "Or"
+    | Yield _ -> print_endline "Yield"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -130,6 +132,7 @@ let errorstring_of_token = function
     | Goto line -> "Goto of line " ^ string_of_int line
     | And line -> "And of line " ^ string_of_int line
     | Or line -> "Or of line " ^ string_of_int line
+    | Yield line -> "Yield of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -238,5 +241,6 @@ let convert_token t =
         | "goto" -> Goto pos
         | "and" -> And pos
         | "or" -> Or pos
+        | "yield" -> Yield pos
         | _ -> t)
     | _ -> t

@@ -140,6 +140,7 @@ type ast_node =
     | While of ast_node * ast_node
     | For of ast_node * ast_node * ast_node * ast_node
     | Goto of string
+    | Yield of ast_node
 
 let string_of_binop = function
     | Add -> "+"
@@ -219,6 +220,7 @@ let rec string_of_ast = function
     | Bool true -> "true"
     | Bool false -> "false"
     | Goto label -> "(goto :" ^ label ^ ")"
+    | Yield body -> "(yield " ^ string_of_ast body ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -447,7 +449,6 @@ and parse_for_pred st base =
     let* body, st6' = parse_block st5' in
     Ok (For (base, dest, step, body), st6')
 
-
 and parse_for st pos =
     let* base, st' = parse_expr st in
     match base with
@@ -461,6 +462,10 @@ and parse_goto st =
     match ident with
         | Lexer.Ident (label, _) -> Ok (Goto label, st2')
         | _ -> assert false
+
+and parse_yield_stmt st = 
+    let* body, st' = parse_expr st in
+    Ok (Yield body, st')
 
 and parse_stmt st =
     let tok, st' = next st in
@@ -483,6 +488,7 @@ and parse_stmt st =
     | Some (Lexer.While _) -> parse_while st'
     | Some (Lexer.For pos) -> parse_for st' pos
     | Some (Lexer.Goto _) -> parse_goto st'
+    | Some (Lexer.Yield _) -> parse_yield_stmt st'
     | Some (Lexer.Return _) -> (
         match peek st' with
         | Some (Lexer.EndStmt _) -> Ok (Return None, st')
