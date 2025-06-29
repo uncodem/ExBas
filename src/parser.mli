@@ -14,6 +14,8 @@ type binop =
     | EqMore
     | EqLess
     | Not
+    | And 
+    | Or
 
 type ast_node =
     | Number of int

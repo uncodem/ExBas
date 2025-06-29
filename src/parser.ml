@@ -118,6 +118,8 @@ type binop =
     | EqMore
     | EqLess
     | Not
+    | And
+    | Or 
 
 type ast_node =
     | Number of int
@@ -151,6 +153,8 @@ let string_of_binop = function
     | Less -> "<"
     | EqMore -> ">="
     | EqLess -> "<="
+    | And -> "and"
+    | Or -> "or"
     | Not -> "!" (* Not necessarily binop, but here anyways *)
 
 let binop_of_str = function
@@ -166,6 +170,8 @@ let binop_of_str = function
     | ">=" -> Some EqMore
     | "<=" -> Some EqLess
     | "!" -> Some Not
+    | "and" -> Some And
+    | "or" -> Some Or (* Technically not needed here, but for completeness they are *)
     | _ -> None
 
 let rec string_of_ast = function
@@ -316,6 +322,23 @@ and parse_comparison_loop left st =
     | Some _ -> Ok (left, st)
     | None -> Ok (left, st)
 
+and parse_logic_loop left st =
+    match peek st with
+    | Some (And _) ->
+        let _, st' = next st in
+        let* right, st2' = parse_comparison st' in
+        parse_logic_loop (Binary (And, left, right)) st2'
+    | Some (Or _) ->
+        let _, st' = next st in
+        let* right, st2' = parse_comparison st' in
+        parse_logic_loop (Binary (Or, left, right)) st2'
+    | Some _ -> Ok (left, st)
+    | None -> Ok (left, st)
+
+and parse_logic st =
+    let* left, st' = parse_comparison st in
+    parse_logic_loop left st'
+
 and parse_if_expr st =
     match peek st with
     | Some (Lexer.If _) ->
@@ -326,7 +349,7 @@ and parse_if_expr st =
         let* _, st5' = expect_else st4' in
         let* fexpr, st6' = parse_expr st5' in
         Ok (If (cond, texpr, Some fexpr), st6')
-    | _ -> parse_comparison st
+    | _ -> parse_logic st
 
 and parse_assignment st =
     let* left, st' = parse_if_expr st in
