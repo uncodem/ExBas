@@ -226,6 +226,8 @@ let rec parse_literal st =
     match tok with
     | Some (Lexer.Number (x, _)) -> Ok (Number x, st')
     | Some (Lexer.String (x, _)) -> Ok (String x, st')
+    | Some (Lexer.True _) -> Ok (Bool true, st')
+    | Some (Lexer.False _) -> Ok (Bool false, st')
     | Some (Lexer.LParen _) ->
         let* node, st2' = parse_expr st' in
         let* _, st3' = expect_rparen st2' in
