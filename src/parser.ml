@@ -12,7 +12,7 @@ let print_parserstate { stream; indx } =
     let arr = Array.sub stream indx (Array.length stream - indx) in
     Array.iter Lexer.print_token arr
 
-type parser_error = UnexpectedToken of Lexer.token * string | UnexpectedEOF
+type parser_error = UnexpectedToken of Lexer.token * string | UnexpectedEOF | UnexpectedNode of string * Lexer.token_pos
 
 let expect st pred fail_string =
     let tok, st' = next st in
@@ -83,6 +83,20 @@ let expect_eql st =
           | Lexer.Oper ("=", _) -> true
           | _ -> false)
         "Expected =."
+
+let expect_comma st =
+    expect st 
+        (function
+          | Lexer.Comma _ -> true
+          | _ -> false)
+        "Expected comma."
+
+let expect_step st =
+    expect st
+        (function
+          | Lexer.Step _ -> true
+          | _ -> false)
+        "Expected Step."
 
 type binop =
     | Add
@@ -384,6 +398,23 @@ and parse_while st =
     let* body, st2' = parse_block st2' in
     Ok (While (cond, body), st2')
 
+and parse_for_pred st base =
+    let* _, st' = expect_comma st in
+    let* dest, st2' = parse_expr st' in
+    let* _, st3' = expect_step st2' in
+    let* step, st4' = parse_expr st3' in
+    let* _, st5' = expect_beginblock st4' in
+    let* body, st6' = parse_block st5' in
+    Ok (For (base, dest, step, body), st6')
+
+
+and parse_for st pos =
+    let* base, st' = parse_expr st in
+    match base with
+    | Var _ -> parse_for_pred st' base 
+    | Assign (_, _) -> parse_for_pred st' base 
+    | _ -> Error (UnexpectedNode ("Expected assignment or var in for loop", pos))
+
 and parse_stmt st =
     let tok, st' = next st in
     match tok with
@@ -403,6 +434,7 @@ and parse_stmt st =
     | Some (Lexer.Let _) -> parse_let_stmt st'
     | Some (Lexer.Sub _) -> parse_sub st'
     | Some (Lexer.While _) -> parse_while st'
+    | Some (Lexer.For pos) -> parse_for st' pos
     | Some (Lexer.Return _) -> (
         match peek st' with
         | Some (Lexer.EndStmt _) -> Ok (Return None, st')
@@ -438,3 +470,4 @@ let parser_report = function
           ("parser: UnexpectedToken "
           ^ Lexer.errorstring_of_token x
           ^ ". " ^ fail_string)
+    | UnexpectedNode (msg, pos) -> print_endline ("parser: UnexpectedNode " ^ msg ^ " in line " ^ string_of_int pos)

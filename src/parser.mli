@@ -1,5 +1,5 @@
 type parserstate
-type parser_error = UnexpectedToken of Lexer.token * string | UnexpectedEOF
+type parser_error = UnexpectedToken of Lexer.token * string | UnexpectedEOF | UnexpectedNode of string * Lexer.token_pos
 
 type binop =
     | Add

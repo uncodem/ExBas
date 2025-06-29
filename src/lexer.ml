@@ -202,6 +202,6 @@ let convert_token t =
         | "return" -> Return pos
         | "while" -> While pos
         | "for" -> For pos
-        | "Step" -> Step pos
+        | "step" -> Step pos
         | _ -> t)
     | _ -> t
