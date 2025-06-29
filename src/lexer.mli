@@ -25,6 +25,8 @@ type token =
     | True of token_pos
     | False of token_pos
     | Goto of token_pos
+    | And of token_pos
+    | Or of token_pos
 
 val lexer_init : string -> token list
 (** Tokenize source code, into list of tokens *)

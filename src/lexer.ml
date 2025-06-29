@@ -25,6 +25,8 @@ type token =
     | True of token_pos
     | False of token_pos
     | Goto of token_pos
+    | And of token_pos
+    | Or of token_pos
 
 type lexerstate = {
     code : string;
@@ -95,6 +97,8 @@ let print_token = function
     | True _ -> print_endline "True"
     | False _ -> print_endline "False"
     | Goto _ -> print_endline "Goto"
+    | And _ -> print_endline "And"
+    | Or _ -> print_endline "Or"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -124,6 +128,8 @@ let errorstring_of_token = function
     | True line -> "True of line " ^ string_of_int line
     | False line -> "False of line " ^ string_of_int line
     | Goto line -> "Goto of line " ^ string_of_int line
+    | And line -> "And of line " ^ string_of_int line
+    | Or line -> "Or of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 
@@ -230,5 +236,7 @@ let convert_token t =
         | "true" -> True pos
         | "false" -> False pos
         | "goto" -> Goto pos
+        | "and" -> And pos
+        | "or" -> Or pos
         | _ -> t)
     | _ -> t
