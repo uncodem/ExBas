@@ -11,7 +11,7 @@ let read_lines fname =
 
 let () =
     let tokens =
-        Lexer.lexer_init (read_lines "test.txt") |> List.map Lexer.convert_token
+        Lexer.lexer_init (read_lines "test.txt")
     in
     let res = tokens |> Parser.parser_init |> Parser.parse_all in
     List.iter Lexer.print_token tokens; 

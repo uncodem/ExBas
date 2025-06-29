@@ -73,6 +73,30 @@ let token_of_special_char {line_number; _} = function
     | ':' -> Some (Colon line_number)
     | _ -> None
 
+let convert_token t =
+    match t with
+    | Ident (x, pos) -> (
+        match x with
+        | "if" -> If pos
+        | "then" -> Then pos
+        | "begin" -> BeginBlock pos
+        | "end" -> EndBlock pos
+        | "let" -> Let pos
+        | "sub" -> Sub pos
+        | "else" -> Else pos
+        | "return" -> Return pos
+        | "while" -> While pos
+        | "for" -> For pos
+        | "step" -> Step pos
+        | "true" -> True pos
+        | "false" -> False pos
+        | "goto" -> Goto pos
+        | "and" -> And pos
+        | "or" -> Or pos
+        | "yield" -> Yield pos
+        | _ -> t)
+    | _ -> t
+
 let print_token = function
     | Ident (s, _) -> print_endline ("Ident(" ^ s ^ ")")
     | Number (x, _) -> print_endline ("Number(" ^ string_of_int x ^ ")")
@@ -165,6 +189,7 @@ let rec lex_none ({ position; line_number; _ } as state) =
 and lex_string state start len =
     match peek state with
     | Some '"' -> lex_none (add_token_advance state (String (String.sub state.code start len, state.line_number)))
+    | None | Some '\n' -> lex_none (add_token_advance state (Illegal ("Unterminated string", state.line_number)))
     | _ -> lex_string (lexer_advance state) start (len+1) 
 
 and lex_comment state =
@@ -189,9 +214,9 @@ and lex_ident state start len =
     | Some c when is_alphanum c ->
         lex_ident (lexer_advance state) start (len + 1)
     | _ ->
+        let tok = Ident (String.sub state.code start len, state.line_number) in
         lex_none
-          (add_token state
-             (Ident (String.sub state.code start len, state.line_number)))
+          (add_token state (convert_token tok))
 
 and lex_number state acc =
     match peek state with
@@ -221,26 +246,3 @@ and lex_oper state acc =
 let lexer_init code =
     lex_none { code; position = 0; tokens = []; line_number = 1 } |> List.rev
 
-let convert_token t =
-    match t with
-    | Ident (x, pos) -> (
-        match x with
-        | "if" -> If pos
-        | "then" -> Then pos
-        | "begin" -> BeginBlock pos
-        | "end" -> EndBlock pos
-        | "let" -> Let pos
-        | "sub" -> Sub pos
-        | "else" -> Else pos
-        | "return" -> Return pos
-        | "while" -> While pos
-        | "for" -> For pos
-        | "step" -> Step pos
-        | "true" -> True pos
-        | "false" -> False pos
-        | "goto" -> Goto pos
-        | "and" -> And pos
-        | "or" -> Or pos
-        | "yield" -> Yield pos
-        | _ -> t)
-    | _ -> t
