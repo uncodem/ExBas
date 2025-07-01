@@ -29,6 +29,7 @@ type token =
     | And of token_pos
     | Or of token_pos
     | Yield of token_pos
+    | Dim of token_pos
 
 val lexer_init : string -> token list
 (** Tokenize source code, into list of tokens *)

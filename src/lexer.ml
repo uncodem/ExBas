@@ -29,6 +29,7 @@ type token =
     | And of token_pos
     | Or of token_pos
     | Yield of token_pos
+    | Dim of token_pos
 
 type lexerstate = {
     code : string;
@@ -127,6 +128,7 @@ let print_token = function
     | And _ -> print_endline "And"
     | Or _ -> print_endline "Or"
     | Yield _ -> print_endline "Yield"
+    | Dim _ -> print_endline "Dim"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -161,6 +163,7 @@ let errorstring_of_token = function
     | And line -> "And of line " ^ string_of_int line
     | Or line -> "Or of line " ^ string_of_int line
     | Yield line -> "Yield of line " ^ string_of_int line
+    | Dim line -> "Dim of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 

@@ -142,6 +142,7 @@ type ast_node =
     | For of ast_node * ast_node * ast_node * ast_node
     | Goto of string
     | Yield of ast_node
+    | Dim of string * ast_node
 
 let string_of_binop = function
     | Add -> "+"
@@ -223,6 +224,7 @@ let rec string_of_ast = function
     | Bool false -> "false"
     | Goto label -> "(goto :" ^ label ^ ")"
     | Yield body -> "(yield " ^ string_of_ast body ^ ")"
+    | Dim (name, len) -> "(dim " ^ name ^ " " ^ string_of_ast len ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -469,6 +471,16 @@ and parse_goto st =
 and parse_yield_stmt st = 
     let* body, st' = parse_expr st in
     Ok (Yield body, st')
+
+and parse_dim_stmt st =
+    let* ident, st' = expect_ident st in
+    match ident with
+    | Lexer.Ident (name, _) -> 
+        let* _, st2' = expect_lparen st' in
+        let* size, st3' = parse_expr st2' in
+        let* _, st4' = expect_rparen st3' in
+        Ok (Dim (name, size), st4')
+    | _ -> assert false
 
 and parse_stmt st =
     let tok, st' = next st in
