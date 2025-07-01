@@ -21,6 +21,7 @@ type ast_node =
     | Number of int
     | String of string
     | Bool of bool
+    | Float of float
     | Unary of binop * ast_node
     | Binary of binop * ast_node * ast_node
     | Statement of string * ast_node list

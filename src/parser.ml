@@ -125,6 +125,7 @@ type ast_node =
     | Number of int
     | String of string
     | Bool of bool 
+    | Float of float
     | Unary of binop * ast_node
     | Binary of binop * ast_node * ast_node
     | Statement of string * ast_node list
@@ -180,6 +181,7 @@ let rec string_of_ast = function
     | Binary (a, x, y) ->
         "(" ^ string_of_binop a ^ " " ^ string_of_ast x ^ " " ^ string_of_ast y
         ^ ")"
+    | Float x -> string_of_float x
     | Unary (a, x) -> "(" ^ string_of_binop a ^ " " ^ string_of_ast x ^ ")"
     | Statement (call, params) ->
         let param_strs = List.map string_of_ast params in
@@ -234,6 +236,7 @@ let rec parse_literal st =
     match tok with
     | Some (Lexer.Number (x, _)) -> Ok (Number x, st')
     | Some (Lexer.String (x, _)) -> Ok (String x, st')
+    | Some (Lexer.Float (x, _)) -> Ok (Float x, st')
     | Some (Lexer.True _) -> Ok (Bool true, st')
     | Some (Lexer.False _) -> Ok (Bool false, st')
     | Some (Lexer.LParen _) ->
