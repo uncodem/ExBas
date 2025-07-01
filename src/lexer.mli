@@ -3,6 +3,7 @@ type token_pos = int
 type token =
     | Ident of string * token_pos
     | Number of int * token_pos
+    | Float of float * token_pos
     | Oper of string * token_pos
     | LParen of token_pos
     | RParen of token_pos

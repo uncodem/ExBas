@@ -3,6 +3,7 @@ type token_pos = int
 type token =
     | Ident of string * token_pos
     | Number of int * token_pos
+    | Float of float * token_pos
     | Oper of string * token_pos
     | LParen of token_pos
     | RParen of token_pos
@@ -100,6 +101,7 @@ let convert_token t =
 let print_token = function
     | Ident (s, _) -> print_endline ("Ident(" ^ s ^ ")")
     | Number (x, _) -> print_endline ("Number(" ^ string_of_int x ^ ")")
+    | Float (f, _) -> print_endline ("Float("^ string_of_float f ^ ")")
     | Oper (x, _) -> print_endline ("Oper(" ^ x ^ ")")
     | Illegal (s, _) -> print_endline ("Illegal(" ^ s ^ ")")
     | LParen _ -> print_endline "LParen"
@@ -131,6 +133,8 @@ let errorstring_of_token = function
         "Identifier \"" ^ s ^ "\" of line " ^ string_of_int line
     | Number (x, line) ->
         "Number " ^ string_of_int x ^ " of line " ^ string_of_int line
+    | Float (f, line) ->
+        "Float " ^ string_of_float f ^ " of line " ^ string_of_int line
     | Oper (x, line) -> "Operator " ^ x ^ " of line " ^ string_of_int line
     | Illegal (s, line) ->
         "Illegal token \"" ^ s ^ "\" of line " ^ string_of_int line
@@ -224,7 +228,22 @@ and lex_number state acc =
         let digit = Char.code c - Char.code '0' in
         let new_acc = (acc * 10) + digit in
         lex_number (lexer_advance state) new_acc
+    | Some '.' ->
+        let check = lexer_advance state in
+        (match peek check with
+        | Some c when is_digit c -> lex_float (lexer_advance state) (string_of_int acc ^ ".")
+        | _ -> lex_illegal check check.position 1 check.line_number)
     | _ -> lex_none (add_token state (Number (acc, state.line_number)))
+
+and lex_float state acc = 
+    match peek state with
+    | Some c when is_digit c ->
+        let new_acc = acc ^ String.make 1 c in
+        lex_float (lexer_advance state) new_acc
+    | _ -> (
+        match float_of_string_opt acc with
+        | Some f -> lex_none (add_token state (Float (f, state.line_number)))
+        | None -> lex_none (add_token state (Illegal ("Invalid float: " ^ acc, state.line_number))))
 
 and lex_oper state acc =
     let next = peek state in
