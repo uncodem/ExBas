@@ -1,3 +1,5 @@
 (executable
  (public_name bascc)
- (name main))
+ (name main)
+ (modules main parser lexer opcodes emitter checker))
+
