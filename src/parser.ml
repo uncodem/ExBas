@@ -281,20 +281,6 @@ and parse_postfix node st =
         parse_postfix (Call ((match node with Var x -> x | _ -> assert false), args)) st3'
     | _ -> Ok (node, st)
 
-(* and parse_ident st ident =
-    match peek st with
-    | Some (Lexer.LParen _) ->
-        let _, st' = next st in
-        let* param_list, st2' = parse_param_list_loop st' [] in
-        let* _, st3' = expect_rparen st2' in
-        Ok (Call (ident, param_list), st3')
-    | Some (Lexer.LBracket _) ->
-        let _, st' = next st in
-        let* idx, st2' = parse_expr st' in
-        let* _, st3' = expect_rbracket st2' in
-        Ok (Index (Var ident, idx), st3')
-    | _ -> Ok (Var ident, st) *)
-
 and parse_block st =
     let* stmts, st' = parse_stmts st true in
     let* _, st2' = expect_endblock st' in
