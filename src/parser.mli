@@ -27,6 +27,7 @@ type ast_node =
     | Statement of string * ast_node list
     | Block of ast_node list
     | Call of string * ast_node list
+    | Index of ast_node * ast_node
     | Var of string
     | If of ast_node * ast_node * ast_node option
     | Let of string * ast_node

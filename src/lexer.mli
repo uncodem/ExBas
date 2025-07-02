@@ -12,6 +12,8 @@ type token =
     | EndStmt of token_pos
     | BeginBlock of token_pos
     | EndBlock of token_pos
+    | LBracket of token_pos
+    | RBracket of token_pos
     | If of token_pos
     | Then of token_pos
     | Else of token_pos

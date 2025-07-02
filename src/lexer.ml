@@ -12,6 +12,8 @@ type token =
     | EndStmt of token_pos
     | BeginBlock of token_pos
     | EndBlock of token_pos
+    | LBracket of token_pos
+    | RBracket of token_pos
     | If of token_pos
     | Then of token_pos
     | Else of token_pos
@@ -107,6 +109,8 @@ let print_token = function
     | Illegal (s, _) -> print_endline ("Illegal(" ^ s ^ ")")
     | LParen _ -> print_endline "LParen"
     | RParen _ -> print_endline "RParen"
+    | LBracket _ -> print_endline "LBracket"
+    | RBracket _ -> print_endline "RBracket"
     | Comma _ -> print_endline "Comma"
     | EndStmt _ -> print_endline "EndStmt"
     | BeginBlock _ -> print_endline "BeginBlock"
@@ -142,6 +146,8 @@ let errorstring_of_token = function
         "Illegal token \"" ^ s ^ "\" of line " ^ string_of_int line
     | LParen line -> "LParen ( of line " ^ string_of_int line
     | RParen line -> "RParen ) of line " ^ string_of_int line
+    | LBracket line -> "LBracket [ of line " ^ string_of_int line
+    | RBracket line -> "RBracket ] of line " ^ string_of_int line
     | Comma line -> "Comma , of line " ^ string_of_int line
     | EndStmt line -> "EndStmt in line " ^ string_of_int line
     | BeginBlock line -> "Begin of line " ^ string_of_int line
@@ -180,7 +186,7 @@ let rec lex_none ({ position; line_number; _ } as state) =
     | Some '"' -> lex_string (lexer_advance state) (position+1) 0
     | Some c when c = '[' || c = ']' ->
         add_token_advance state
-          (if c = '[' then BeginBlock line_number else EndBlock line_number)
+          (if c = '[' then LBracket line_number else RBracket line_number)
         |> lex_none
     | Some c when Char.code c <= 32 -> lex_none (lexer_advance state)
     | Some c when is_oper c -> lex_oper (lexer_advance state) (String.make 1 c)

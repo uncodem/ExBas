@@ -105,6 +105,13 @@ let expect_colon st =
           | _ -> false)
         "Expected Colon."
 
+let expect_rbracket st =
+    expect st
+        (function
+          | Lexer.RBracket _ -> true
+          | _ -> false)
+        "Expected right bracket."
+
 type binop =
     | Add
     | Sub
@@ -131,6 +138,7 @@ type ast_node =
     | Statement of string * ast_node list
     | Block of ast_node list
     | Call of string * ast_node list
+    | Index of ast_node * ast_node
     | Var of string
     | If of ast_node * ast_node * ast_node option
     | Let of string * ast_node
@@ -195,6 +203,8 @@ let rec string_of_ast = function
         let param_strs = List.map string_of_ast params in
         let body = String.concat " " (call :: param_strs) in
         "(" ^ body ^ ")"
+    | Index (var, idx) ->
+        string_of_ast var ^ "[" ^ string_of_ast idx ^ "]"
     | If (cond, texpr, fexpr) -> 
         "(if " ^ string_of_ast cond ^ " " ^ string_of_ast texpr ^ " " ^ (
             match fexpr with
@@ -262,6 +272,12 @@ and parse_ident st ident =
         let* param_list, st2' = parse_param_list_loop st' [] in
         let* _, st3' = expect_rparen st2' in
         Ok (Call (ident, param_list), st3')
+    | Some (Lexer.LBracket _) ->
+        let _, st' = next st in
+        let* idx, st2' = parse_expr st' in
+        let* _, st3' = expect_rbracket st2' in
+        Ok (Index (Var ident, idx), st3')
+
     | _ -> Ok (Var ident, st)
 
 and parse_block st =
