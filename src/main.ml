@@ -18,7 +18,6 @@ let () =
     let res = tokens |> Parser.parser_init |> Parser.parse_all in
     match res with
     | Ok a -> 
-        print_endline (Parser.string_of_ast a);
-        Emitter.emit_node a
+        print_endline (Parser.string_of_ast a)
     | Error e -> Parser.parser_report e
 
