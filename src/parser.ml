@@ -246,17 +246,19 @@ let ( let* ) r f =
 let rec parse_literal st =
     let tok, st' = next st in
     match tok with
-    | Some (Lexer.Number (x, _)) -> Ok (Number x, st')
-    | Some (Lexer.String (x, _)) -> Ok (String x, st')
-    | Some (Lexer.Float (x, _)) -> Ok (Float x, st')
-    | Some (Lexer.True _) -> Ok (Bool true, st')
-    | Some (Lexer.False _) -> Ok (Bool false, st')
+    | Some (Lexer.Number (x, _)) -> parse_postfix (Number x) st'
+    | Some (Lexer.String (x, _)) -> parse_postfix (String x) st'
+    | Some (Lexer.Float (x, _)) -> parse_postfix (Float x) st'
+    | Some (Lexer.True _) -> parse_postfix (Bool true) st'
+    | Some (Lexer.False _) -> parse_postfix (Bool false) st'
     | Some (Lexer.LParen _) ->
         let* node, st2' = parse_expr st' in
         let* _, st3' = expect_rparen st2' in
-        Ok (node, st3')
-    | Some (Lexer.BeginBlock _) -> parse_block st' 
-    | Some (Lexer.Ident (x, _)) -> parse_ident st' x
+        parse_postfix node st3'
+    | Some (Lexer.BeginBlock _) -> 
+        let* node, st2' = parse_block st' in
+        parse_postfix node st2'
+    | Some (Lexer.Ident (x, _)) -> parse_postfix (Var x) st'
     | Some x ->
         Error
           (UnexpectedToken
@@ -265,7 +267,21 @@ let rec parse_literal st =
 
 and parse_expr st = parse_assignment st
 
-and parse_ident st ident =
+and parse_postfix node st = 
+    match peek st with
+    | Some (Lexer.LBracket _) ->
+        let _, st' = next st in
+        let* idx, st2' = parse_expr st' in
+        let* _, st3' = expect_rbracket st2' in
+        parse_postfix (Index (node, idx)) st3'
+    | Some (Lexer.LParen _) ->
+        let _, st' = next st in
+        let* args, st2' = parse_param_list_loop st' [] in
+        let* _, st3' = expect_rparen st2' in
+        parse_postfix (Call ((match node with Var x -> x | _ -> assert false), args)) st3'
+    | _ -> Ok (node, st)
+
+(* and parse_ident st ident =
     match peek st with
     | Some (Lexer.LParen _) ->
         let _, st' = next st in
@@ -277,8 +293,7 @@ and parse_ident st ident =
         let* idx, st2' = parse_expr st' in
         let* _, st3' = expect_rbracket st2' in
         Ok (Index (Var ident, idx), st3')
-
-    | _ -> Ok (Var ident, st)
+    | _ -> Ok (Var ident, st) *)
 
 and parse_block st =
     let* stmts, st' = parse_stmts st true in
@@ -520,6 +535,7 @@ and parse_stmt st =
     | Some (Lexer.For pos) -> parse_for st' pos
     | Some (Lexer.Goto _) -> parse_goto st'
     | Some (Lexer.Yield _) -> parse_yield_stmt st'
+    | Some (Lexer.Dim _) -> parse_dim_stmt st'
     | Some (Lexer.Return _) -> (
         match peek st' with
         | Some (Lexer.EndStmt _) -> Ok (Return None, st')
