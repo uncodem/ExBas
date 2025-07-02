@@ -18,3 +18,9 @@ type checker_error =
 
 val annotate_node : Parser.ast_node -> (typed_node, checker_error) result
 (** Annotates all the nodes of an ast recursively *)
+
+val typeof_node : typed_node -> node_type
+(** Extracts node type information *)
+
+val nodeof_node : typed_node -> Parser.ast_node
+(** Extracts parent ast_node *)
