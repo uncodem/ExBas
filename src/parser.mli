@@ -18,6 +18,7 @@ type binop =
     | Or
 
 type ast_node =
+    | Program of ast_node list
     | Number of int
     | String of string
     | Bool of bool
@@ -44,7 +45,7 @@ type ast_node =
 val parser_init : Lexer.token list -> parserstate
 (** Generates parserstate from token list *)
 
-val parse_all : parserstate -> (ast_node list, parser_error) result
+val parse_all : parserstate -> (ast_node, parser_error) result
 (** Generates AST from provided parserstate *)
 
 val parser_report : parser_error -> unit

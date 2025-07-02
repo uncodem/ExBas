@@ -1,0 +1,44 @@
+type exbvm_opcode =
+    | OP_const
+    | OP_copy
+    | OP_cast
+    | OP_size
+    | OP_startscope
+    | OP_endscope
+    | OP_defvar
+    | OP_pushvar
+    | OP_popvar
+    | OP_swap
+    | OP_dup
+    | OP_drop
+    | OP_createarray
+    | OP_initarray
+    | OP_cget
+    | OP_rget
+    | OP_cset
+    | OP_rset
+    | OP_add
+    | OP_sub
+    | OP_div
+    | OP_mul
+    | OP_mod
+    | OP_and
+    | OP_or
+    | OP_not
+    | OP_eql
+    | OP_neql
+    | OP_more
+    | OP_less
+    | OP_eqmore
+    | OP_eqless
+    | OP_jmp
+    | OP_call
+    | OP_tjmp
+    | OP_tcall
+    | OP_dump
+    | OP_input
+    | OP_ret
+
+val int_of_exbvm_op : exbvm_opcode -> int
+
+

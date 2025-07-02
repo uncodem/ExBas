@@ -129,6 +129,7 @@ type binop =
     | Or 
 
 type ast_node =
+    | Program of ast_node list
     | Number of int
     | String of string
     | Bool of bool 
@@ -186,6 +187,9 @@ let binop_of_str = function
     | _ -> None
 
 let rec string_of_ast = function
+    | Program b -> 
+        let body = String.concat "\n" (List.map string_of_ast b) in
+        "(Program " ^ body ^ ")"
     | Number x -> string_of_int x
     | Binary (a, x, y) ->
         "(" ^ string_of_binop a ^ " " ^ string_of_ast x ^ " " ^ string_of_ast y
@@ -548,7 +552,7 @@ and parse_stmts st blocked =
 
 let parse_all st =
     let* stmts, _ = parse_stmts st false in
-    Ok stmts
+    Ok (Program stmts)
 
 let parser_report = function
     | UnexpectedEOF -> print_endline "parser: UnexpectedEOF"
