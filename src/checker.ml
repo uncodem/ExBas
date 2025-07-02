@@ -39,6 +39,18 @@ let rec iter_result f lst =
         let* _ = f x in
         iter_result f xs
 
+let is_arithmetic_op = function
+    | Parser.Add | Parser.Sub | Parser.Mul | Parser.Div -> true
+    | _ -> false
+
+let is_logic_op = function
+    | Parser.And | Parser.Or -> true
+    | _ -> false
+
+let is_comparison_op = function
+    | Parser.More | Parser.Less | Parser.EqLess | Parser.EqMore | Parser.Eql | Parser.Neql -> true
+    | _ -> false
+
 let rec annotate_node node = 
     match node with
     | Parser.Number _ -> Ok ({ kind = T_int; node })
@@ -46,16 +58,28 @@ let rec annotate_node node =
     | Parser.Bool _ -> Ok ({ kind = T_bool; node})
     | Parser.Float _ -> Ok ({ kind = T_float; node })
     | Parser.Var _ -> Ok ({ kind = T_any; node })
-    | Parser.Call _ -> Ok ({ kind = T_any; node })
-    | Parser.Binary (_, left_node, right_node) ->
+    | Parser.Call (_, params) ->
+        let* _ = iter_result annotate_node params in
+        Ok ({ kind = T_any; node })
+    | Parser.Statement (_, params, _) ->
+        let* _ = iter_result annotate_node params in
+        Ok ({ kind = T_none; node })
+    | Parser.Binary (op, left_node, right_node) ->
         let* left = annotate_node left_node in
         let* right = annotate_node right_node in
         if eql_types (typeof_node left) (typeof_node right) then 
-            Ok ({kind = left.kind; node})
+            let node_kind = (
+                match op with
+                | x when is_arithmetic_op x -> left.kind 
+                | x when is_logic_op x -> T_bool
+                | x when is_comparison_op x -> T_bool
+                | _ -> assert false
+            ) in
+            Ok ({kind = node_kind; node})
         else
             Error (MismatchedTypes (typeof_node left, typeof_node right))
     | Parser.If _ -> annotate_if node
-    | Parser.Statement _ | Parser.Assign (_, _, Some _)
+    | Parser.Assign (_, _, Some _)
     | Parser.For _ | Parser.While _ | Parser.FuncDef _ | Parser.Dim _ | Parser.Let _ 
     | Parser.Goto _ | Parser.Return _ | Parser.Label _ -> Ok ({kind = T_none; node})
     | Parser.Program stmts -> 

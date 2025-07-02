@@ -17,7 +17,9 @@ let () =
     print_endline "---";
     let res = tokens |> Parser.parser_init |> Parser.parse_all in
     match res with
-    | Ok a -> 
-        print_endline (Parser.string_of_ast a)
+    | Ok a -> (
+        match Checker.annotate_node a with
+        | Ok tnode -> print_endline (Parser.string_of_ast tnode.node)
+        | Error _ -> print_endline "Errored out")
     | Error e -> Parser.parser_report e
 
