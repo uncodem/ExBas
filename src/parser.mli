@@ -21,26 +21,26 @@ type ast_node =
     | Program of ast_node list
     | Number of int
     | String of string
-    | Bool of bool
+    | Bool of bool 
     | Float of float
     | Unary of binop * ast_node
     | Binary of binop * ast_node * ast_node
-    | Statement of string * ast_node list
+    | Statement of string * ast_node list * Lexer.token_pos
     | Block of ast_node list
     | Call of string * ast_node list
     | Index of ast_node * ast_node
     | Var of string
-    | If of ast_node * ast_node * ast_node option
-    | Let of string * ast_node
-    | Assign of string * ast_node
-    | Label of string
-    | FuncDef of string * string list * ast_node
-    | Return of ast_node option
-    | While of ast_node * ast_node
-    | For of ast_node * ast_node * ast_node * ast_node
-    | Goto of string
-    | Yield of ast_node
-    | Dim of string * ast_node
+    | If of ast_node * ast_node * ast_node option * Lexer.token_pos option
+    | Let of string * ast_node * Lexer.token_pos
+    | Assign of string * ast_node * Lexer.token_pos option
+    | Label of string * Lexer.token_pos
+    | FuncDef of string * string list * ast_node * Lexer.token_pos
+    | Return of ast_node option * Lexer.token_pos
+    | While of ast_node * ast_node * Lexer.token_pos
+    | For of ast_node * ast_node * ast_node * ast_node * Lexer.token_pos
+    | Goto of string * Lexer.token_pos
+    | Yield of ast_node * Lexer.token_pos
+    | Dim of string * ast_node * Lexer.token_pos
 
 val parser_init : Lexer.token list -> parserstate
 (** Generates parserstate from token list *)
