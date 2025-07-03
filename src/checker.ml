@@ -12,11 +12,12 @@ type typed_node = {
     node: Parser.ast_node;
 }
 
-(* TODO: Implement stringified errors *)
+(* TODO: Implement stringified errors and allow line numbers *)
 type checker_error =
     | MismatchedTypes of node_type * node_type
     | ExpectedType of node_type * node_type
     | ExpectedEither of node_type * node_type * node_type
+    | AnyNotAllowed
 
 let typeof_node {kind; _} = kind
 let nodeof_node {node; _} = node
@@ -52,6 +53,13 @@ let is_comparison_op = function
     | Parser.More | Parser.Less | Parser.EqLess | Parser.EqMore | Parser.Eql | Parser.Neql -> true
     | _ -> false
 
+let rec decide_if_any atype btype =
+    match atype, btype with
+    | T_any, x | x, T_any -> x
+    | _ when eql_types atype btype -> atype
+    | T_array x, T_array y -> T_array (decide_if_any x y)
+    | _ -> assert false (* Shouldn't be called if the types are not equivalent *)
+
 let rec annotate_node node = 
     match node with
     | Parser.Number _ -> Ok ({ kind = T_int; node })
@@ -69,14 +77,15 @@ let rec annotate_node node =
         let* left = annotate_node left_node in
         let* right = annotate_node right_node in
         if eql_types (typeof_node left) (typeof_node right) then 
+            let bool_op = (is_logic_op op) || (is_comparison_op op) in
             let node_kind = (
                 match op with
-                | x when is_arithmetic_op x -> left.kind 
-                | x when is_logic_op x -> T_bool
-                | x when is_comparison_op x -> T_bool
+                | x when is_arithmetic_op x -> decide_if_any (typeof_node left) (typeof_node right)
+                | _ when bool_op -> T_bool
                 | _ -> assert false
             ) in
-            Ok ({kind = node_kind; node})
+            if bool_op && (left.kind == T_any || right.kind == T_any) then Error AnyNotAllowed
+            else Ok ({kind = node_kind; node})
         else
             Error (MismatchedTypes (typeof_node left, typeof_node right))
     | Parser.Unary _ -> annotate_unary node

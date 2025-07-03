@@ -16,6 +16,7 @@ type checker_error =
     | MismatchedTypes of node_type * node_type
     | ExpectedType of node_type * node_type
     | ExpectedEither of node_type * node_type * node_type
+    | AnyNotAllowed
 
 val annotate_node : Parser.ast_node -> (typed_node, checker_error) result
 (** Annotates all the nodes of an ast recursively *)
