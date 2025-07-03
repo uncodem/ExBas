@@ -94,8 +94,17 @@ let rec annotate_node node =
     | Parser.Let _ -> annotate_let node
     | Parser.Dim _ -> annotate_dim node
     | Parser.Index _ -> annotate_index node
+    | Parser.Return (opt_expr, _) -> (
+        match opt_expr with
+        | Some expr -> 
+            let* ret_node = annotate_node expr in
+            Ok ({kind = typeof_node ret_node; node}) (* While technically a statement, FuncDef needs this to have a type*)
+        | _ -> Ok ({kind = T_none; node}))
+    | Parser.Yield (expr, _) ->
+        let* exnode = annotate_node expr in
+        Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
     | Parser.For _ | Parser.While _ | Parser.FuncDef _  
-    | Parser.Goto _ | Parser.Return _ | Parser.Label _ -> Ok ({kind = T_none; node})
+    | Parser.Goto _ | Parser.Label _ -> Ok ({kind = T_none; node})
     | Parser.Program stmts -> 
         let* _ = iter_result annotate_node stmts in
         Ok ({kind = T_none; node})
