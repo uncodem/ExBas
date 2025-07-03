@@ -13,7 +13,7 @@ let () =
     let tokens =
         Lexer.lexer_init (read_lines "test.txt")
     in
-    (* List.iter Lexer.print_token tokens; *)
+    List.iter Lexer.print_token tokens;
     print_endline "---";
     let res = tokens |> Parser.parser_init |> Parser.parse_all in
     match res with

@@ -98,6 +98,7 @@ let convert_token t =
         | "and" -> And pos
         | "or" -> Or pos
         | "yield" -> Yield pos
+        | "dim" -> Dim pos
         | _ -> t)
     | _ -> t
 
