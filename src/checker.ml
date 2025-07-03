@@ -17,7 +17,33 @@ type checker_error =
     | MismatchedTypes of node_type * node_type
     | ExpectedType of node_type * node_type
     | ExpectedEither of node_type * node_type * node_type
+    | OnlyAllowed of node_type list
     | AnyNotAllowed
+
+let rec string_of_node_type = function
+    | T_int -> "T_int"
+    | T_float -> "T_float"
+    | T_string -> "T_string"
+    | T_bool -> "T_bool"
+    | T_any -> "T_any"
+    | T_none -> "T_none"
+    | T_array x -> "T_array of " ^ string_of_node_type x
+
+
+let checker_report err = 
+    match err with
+    | MismatchedTypes (a, b) -> 
+        print_endline ("checker: MismatchedTypes " ^ string_of_node_type a ^ " and " ^ string_of_node_type b)
+    | ExpectedType (a, b) ->
+        print_endline ("checker: ExpectedType " ^ string_of_node_type a ^ ", but got " ^ string_of_node_type b)
+    | ExpectedEither (a, b, c) ->
+        print_endline ("checker: ExpectedEither " ^ string_of_node_type a ^ " or " ^ string_of_node_type b ^ ". Got " ^ string_of_node_type c)
+    | OnlyAllowed types ->
+        let alltypes = String.concat ", " (List.map string_of_node_type types) in
+        print_endline ("checker: OnlyAllowed " ^ alltypes ^ ".")
+    | AnyNotAllowed ->
+        print_endline "checker: AnyNotAllowed"
+
 
 let typeof_node {kind; _} = kind
 let nodeof_node {node; _} = node
@@ -103,12 +129,12 @@ let rec annotate_node node =
     | Parser.Yield (expr, _) ->
         let* exnode = annotate_node expr in
         Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
-    | Parser.For _ | Parser.While _ | Parser.FuncDef _  
-    | Parser.Goto _ | Parser.Label _ -> Ok ({kind = T_none; node})
+    | Parser.For _ -> annotate_for node
+    | Parser.While _ | Parser.FuncDef _  
+    | Parser.Goto _ | Parser.Label _ | Parser.Block _ -> Ok ({kind = T_none; node})
     | Parser.Program stmts -> 
         let* _ = iter_result annotate_node stmts in
         Ok ({kind = T_none; node})
-    | _ -> Ok ({ kind = T_any; node})
 
 and annotate_if node =
     match node with
@@ -174,4 +200,20 @@ and annotate_index node =
             | _ -> Error (ExpectedEither (T_array T_any, T_string, typeof_node left)))
         else Error (ExpectedType (T_int, typeof_node right))
     | _ -> assert false
+
+and annotate_for node =
+    match node with
+    | Parser.For (base, dest, step, body, _) ->
+        let* basenode = annotate_node base in
+        let* destnode = annotate_node dest in
+        let* stepnode = annotate_node step in
+        let* bodynode = annotate_node body in
+        let valid_type node = eql_types (typeof_node node) T_int || eql_types (typeof_node node) T_float in
+        if valid_type basenode && 
+           valid_type destnode && 
+           valid_type stepnode then 
+           if (typeof_node bodynode) = T_none then Ok ({kind = T_none; node})
+           else Error (ExpectedType (T_none, typeof_node bodynode))
+        else Error (OnlyAllowed [T_int; T_float])
+    | _ -> assert false 
 

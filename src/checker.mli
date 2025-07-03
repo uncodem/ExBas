@@ -16,6 +16,7 @@ type checker_error =
     | MismatchedTypes of node_type * node_type
     | ExpectedType of node_type * node_type
     | ExpectedEither of node_type * node_type * node_type
+    | OnlyAllowed of node_type list
     | AnyNotAllowed
 
 val annotate_node : Parser.ast_node -> (typed_node, checker_error) result
@@ -26,3 +27,6 @@ val typeof_node : typed_node -> node_type
 
 val nodeof_node : typed_node -> Parser.ast_node
 (** Extracts parent ast_node *)
+
+val checker_report : checker_error -> unit 
+(** Reports checker error *)
