@@ -16,6 +16,7 @@ type typed_node = {
 type checker_error =
     | MismatchedTypes of node_type * node_type
     | ExpectedType of node_type * node_type
+    | ExpectedEither of node_type * node_type * node_type
 
 let typeof_node {kind; _} = kind
 let nodeof_node {node; _} = node
@@ -83,6 +84,7 @@ let rec annotate_node node =
     | Parser.Assign _ -> annotate_assign node
     | Parser.Let _ -> annotate_let node
     | Parser.Dim _ -> annotate_dim node
+    | Parser.Index _ -> annotate_index node
     | Parser.For _ | Parser.While _ | Parser.FuncDef _  
     | Parser.Goto _ | Parser.Return _ | Parser.Label _ -> Ok ({kind = T_none; node})
     | Parser.Program stmts -> 
@@ -139,5 +141,19 @@ and annotate_unary node =
         let* rnode = annotate_node right in
         if eql_types (typeof_node rnode) u_type then Ok ({kind=u_type; node})
         else Error (ExpectedType (u_type, typeof_node rnode))
+    | _ -> assert false
+
+and annotate_index node =
+    match node with
+    | Parser.Index (var, idx) ->
+        let* left = annotate_node var in
+        let* right = annotate_node idx in
+        if eql_types (typeof_node right) T_int then (
+            match typeof_node left with
+            | T_array x -> Ok ({kind = x; node})
+            | T_string -> Ok ({kind = T_int; node}) (* The VM has no char type, it returns an int for whenever a string is indexed *)
+            | T_any -> Ok ({kind = T_any; node}) (* Temporary measure *)
+            | _ -> Error (ExpectedEither (T_array T_any, T_string, typeof_node left)))
+        else Error (ExpectedType (T_int, typeof_node right))
     | _ -> assert false
 

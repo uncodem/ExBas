@@ -279,10 +279,8 @@ and parse_postfix node st =
         let* _, st3' = expect_rbracket st2' in
         parse_postfix (Index (node, idx)) st3'
     | Some (Lexer.LParen _) ->
-        let _, st' = next st in
-        let* args, st2' = parse_param_list_loop st' [] in
-        let* _, st3' = expect_rparen st2' in
-        parse_postfix (Call ((match node with Var x -> x | _ -> assert false), args)) st3'
+        let* args, st' = parse_param_list st in
+        parse_postfix (Call ((match node with Var x -> x | _ -> assert false), args)) st'
     | _ -> Ok (node, st)
 
 and parse_block st =
@@ -412,7 +410,8 @@ and parse_param_list_loop st acc =
     | Some (Lexer.Comma _) ->
         let _, st2' = next st' in
         parse_param_list_loop st2' (expr :: acc)
-    | _ -> Ok (expr :: acc |> List.rev, st')
+    | _ -> 
+        Ok (expr :: acc |> List.rev, st')
 
 and parse_param_list st =
     let* _, st' = expect_lparen st in
