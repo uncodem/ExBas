@@ -78,9 +78,12 @@ let rec annotate_node node =
             Ok ({kind = node_kind; node})
         else
             Error (MismatchedTypes (typeof_node left, typeof_node right))
+    | Parser.Unary _ -> annotate_unary node
     | Parser.If _ -> annotate_if node
-    | Parser.Assign (_, _, Some _)
-    | Parser.For _ | Parser.While _ | Parser.FuncDef _ | Parser.Dim _ | Parser.Let _ 
+    | Parser.Assign _ -> annotate_assign node
+    | Parser.Let _ -> annotate_let node
+    | Parser.Dim _ -> annotate_dim node
+    | Parser.For _ | Parser.While _ | Parser.FuncDef _  
     | Parser.Goto _ | Parser.Return _ | Parser.Label _ -> Ok ({kind = T_none; node})
     | Parser.Program stmts -> 
         let* _ = iter_result annotate_node stmts in
@@ -103,3 +106,38 @@ and annotate_if node =
                 else Error (MismatchedTypes (typeof_node tnode, typeof_node enode))
             | None -> Ok ({kind = if_type; node}))
     | _ -> assert false
+
+and annotate_assign node =
+    match node with
+    | Parser.Assign (_, valnode, opt_pos) ->
+        let* v = annotate_node valnode in
+        if Option.is_some opt_pos then
+            Ok ({kind = T_none; node})
+        else 
+            Ok ({kind = typeof_node v; node})
+    | _ -> assert false
+
+and annotate_let node = 
+    match node with
+    | Parser.Let (_, valnode, _) ->
+        let* _ = annotate_node valnode in
+        Ok ({kind = T_none; node})
+    | _ -> assert false
+
+and annotate_dim node =
+    match node with
+    | Parser.Dim (_, sizenode, _) ->
+        let* size = annotate_node sizenode in
+        if eql_types (typeof_node size) T_int then Ok({kind = T_none; node})
+        else Error (ExpectedType (T_int, typeof_node size))
+    | _ -> assert false
+
+and annotate_unary node =
+    match node with 
+    | Parser.Unary (op, right) ->
+        let u_type = if op = Parser.Not then T_bool else T_int in
+        let* rnode = annotate_node right in
+        if eql_types (typeof_node rnode) u_type then Ok ({kind=u_type; node})
+        else Error (ExpectedType (u_type, typeof_node rnode))
+    | _ -> assert false
+
