@@ -20,6 +20,7 @@ type checker_error =
     | OnlyAllowed of node_type list
     | InvalidType of string
     | AnyNotAllowed
+    | DisallowedFuncDef
 
 let rec string_of_node_type = function
     | T_int -> "T_int"
@@ -60,6 +61,8 @@ let checker_report err =
         print_endline "checker: AnyNotAllowed"
     | InvalidType typestr ->
         print_endline ("checker: InvalidType '" ^ typestr ^ "'.")
+    | DisallowedFuncDef -> 
+        print_endline ("checker: DisallowedFuncDef sub definitions are not allowed inside blocks.")
 
 
 let typeof_node {kind; _} = kind
@@ -69,13 +72,6 @@ let ( let* ) r f =
     match r with
     | Ok x -> f x
     | Error e -> Error e
-
-(* let rec eql_types t1 t2 =
-    match t1, t2 with
-    | T_any, _ | _, T_any -> true
-    | T_int, T_int | T_string, T_string | T_float, T_float | T_bool, T_bool | T_none, T_none -> true
-    | T_array x, T_array y -> eql_types x y 
-    | _ -> false *)
 
 let rec eql_types t1 t2 = 
     match t1, t2 with
@@ -151,6 +147,7 @@ let rec annotate_node node =
     | Parser.Let _ -> annotate_let node
     | Parser.Dim _ -> annotate_dim node 
     | Parser.Index _ -> annotate_index node
+    | Parser.Block _ -> annotate_block node
     | Parser.Return (opt_expr, _) -> (
         match opt_expr with
         | Some expr -> 
@@ -162,7 +159,7 @@ let rec annotate_node node =
         Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
     | Parser.For _ -> annotate_for node
     | Parser.While _ -> annotate_while node 
-    | Parser.FuncDef _ | Parser.Goto _ | Parser.Label _ | Parser.Block _ -> Ok ({kind = T_none; node})
+    | Parser.FuncDef _ | Parser.Goto _ | Parser.Label _ -> Ok ({kind = T_none; node})
     | Parser.Program stmts -> 
         let* _ = iter_result annotate_node stmts in
         Ok ({kind = T_none; node})
@@ -267,3 +264,23 @@ and annotate_while node =
         else Error (ExpectedType (T_bool, typeof_node condnode))
     | _ -> assert false
 
+and annotate_block node =
+    let block_type = ref T_none in
+    let aux a =
+        match nodeof_node a with
+        | Parser.Yield _ -> 
+            if !block_type = T_none then 
+                let _ = block_type := typeof_node a in Ok ()
+            else 
+                if eql_types (!block_type) (typeof_node a) then Ok()
+                else Error (MismatchedTypes (!block_type, typeof_node a))
+        | Parser.FuncDef _ ->
+            Error DisallowedFuncDef
+        | _ -> Ok () 
+    in
+    match node with
+    | Parser.Block stmts ->
+        let* tstmts = iter_result_acc annotate_node stmts [] in
+        let* _ = iter_result aux tstmts in
+        Ok ({kind = !block_type; node})
+    | _ -> assert false 

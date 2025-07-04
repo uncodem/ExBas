@@ -19,6 +19,7 @@ type checker_error =
     | OnlyAllowed of node_type list
     | InvalidType of string
     | AnyNotAllowed
+    | DisallowedFuncDef
 
 val annotate_node : Parser.ast_node -> (typed_node, checker_error) result
 (** Annotates all the nodes of an ast recursively *)
