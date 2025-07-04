@@ -17,6 +17,7 @@ type checker_error =
     | ExpectedType of node_type * node_type
     | ExpectedEither of node_type * node_type * node_type
     | OnlyAllowed of node_type list
+    | InvalidType of string
     | AnyNotAllowed
 
 val annotate_node : Parser.ast_node -> (typed_node, checker_error) result

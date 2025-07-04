@@ -18,6 +18,7 @@ type checker_error =
     | ExpectedType of node_type * node_type
     | ExpectedEither of node_type * node_type * node_type
     | OnlyAllowed of node_type list
+    | InvalidType of string
     | AnyNotAllowed
 
 let rec string_of_node_type = function
@@ -29,6 +30,20 @@ let rec string_of_node_type = function
     | T_none -> "T_none"
     | T_array x -> "T_array of " ^ string_of_node_type x
 
+(* Function will be used for type annotations, we don't allow arrays and T_none in annotations *)
+let node_type_of_string = function
+    | "int" -> Some T_int
+    | "float" -> Some T_float
+    | "string" -> Some T_string
+    | "any" -> Some T_any
+    | "bool" -> Some T_bool
+    | _ -> None
+
+(* let rec gen_arr_typing idx typing =
+    match idx with
+    | 1 -> typing
+    | 0 -> assert false
+    | _ -> T_array (gen_arr_typing (idx - 1) typing) *)
 
 let checker_report err = 
     match err with
@@ -43,6 +58,8 @@ let checker_report err =
         print_endline ("checker: OnlyAllowed " ^ alltypes ^ ".")
     | AnyNotAllowed ->
         print_endline "checker: AnyNotAllowed"
+    | InvalidType typestr ->
+        print_endline ("checker: InvalidType '" ^ typestr ^ "'.")
 
 
 let typeof_node {kind; _} = kind
@@ -73,6 +90,13 @@ let rec iter_result f lst =
     | x :: xs ->
         let* _ = f x in
         iter_result f xs
+
+let rec iter_result_acc f lst acc =
+    match lst with
+    | [] -> Ok (List.rev acc)
+    | hd :: tl ->
+        let* r = f hd in
+        iter_result_acc f tl (r :: acc)
 
 let is_arithmetic_op = function
     | Parser.Add | Parser.Sub | Parser.Mul | Parser.Div -> true
@@ -117,7 +141,7 @@ let rec annotate_node node =
                 | _ when bool_op -> T_bool
                 | _ -> assert false
             ) in
-            if bool_op && (left.kind == T_any || right.kind == T_any) then Error AnyNotAllowed
+            if bool_op && (left.kind = T_any || right.kind = T_any) then Error AnyNotAllowed
             else Ok ({kind = node_kind; node})
         else
             Error (MismatchedTypes (typeof_node left, typeof_node right))
@@ -125,7 +149,7 @@ let rec annotate_node node =
     | Parser.If _ -> annotate_if node
     | Parser.Assign _ -> annotate_assign node
     | Parser.Let _ -> annotate_let node
-    | Parser.Dim _ -> Ok ({kind = T_none; node})
+    | Parser.Dim _ -> annotate_dim node 
     | Parser.Index _ -> annotate_index node
     | Parser.Return (opt_expr, _) -> (
         match opt_expr with
@@ -177,13 +201,19 @@ and annotate_let node =
         Ok ({kind = T_none; node})
     | _ -> assert false
 
-(*and annotate_dim node =
+and annotate_dim node =
     match node with
-    | Parser.Dim (_, sizenode, _) ->
-        let* size = annotate_node sizenode in
-        if eql_types (typeof_node size) T_int then Ok({kind = T_none; node})
-        else Error (ExpectedType (T_int, typeof_node size))
-    | _ -> assert false *)
+    | Parser.Dim (_, sizes, typestr, _) -> 
+        let* sizenodes = iter_result_acc annotate_node sizes [] in
+        let validate acc y = acc && (eql_types y.kind T_int) in
+        let is_valid = List.fold_left validate true sizenodes in
+        if is_valid then 
+            let arrtype = node_type_of_string typestr in
+            (match arrtype with
+            | Some _ -> Ok ({kind = T_none; node})
+            | None -> Error (InvalidType typestr))
+        else Error (OnlyAllowed [T_int])
+    | _ -> assert false 
 
 and annotate_unary node =
     match node with 
