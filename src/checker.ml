@@ -159,7 +159,10 @@ let rec annotate_node node =
         Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
     | Parser.For _ -> annotate_for node
     | Parser.While _ -> annotate_while node 
-    | Parser.FuncDef _ | Parser.Goto _ | Parser.Label _ -> Ok ({kind = T_none; node})
+    | Parser.FuncDef (_, _, body, _) -> 
+        let* _ = annotate_block body in
+        Ok ({kind = T_none; node})
+    | Parser.Goto _ | Parser.Label _ -> Ok ({kind = T_none; node})
     | Parser.Program stmts -> 
         let* _ = iter_result annotate_node stmts in
         Ok ({kind = T_none; node})
@@ -274,12 +277,13 @@ and annotate_block node =
             else 
                 if eql_types (!block_type) (typeof_node a) then Ok()
                 else Error (MismatchedTypes (!block_type, typeof_node a))
-        | Parser.FuncDef _ ->
-            Error DisallowedFuncDef
         | _ -> Ok () 
     in
     match node with
     | Parser.Block stmts ->
+        let nested_fdef = List.exists (function | Parser.FuncDef _ -> true | _ -> false) stmts in
+        if nested_fdef then Error DisallowedFuncDef 
+        else
         let* tstmts = iter_result_acc annotate_node stmts [] in
         let* _ = iter_result aux tstmts in
         Ok ({kind = !block_type; node})
