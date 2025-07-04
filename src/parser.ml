@@ -151,7 +151,7 @@ type ast_node =
     | For of ast_node * ast_node * ast_node * ast_node * Lexer.token_pos
     | Goto of string * Lexer.token_pos
     | Yield of ast_node * Lexer.token_pos
-    | Dim of string * ast_node * Lexer.token_pos
+    | Dim of string * ast_node list * string * Lexer.token_pos
 
 let string_of_binop = function
     | Add -> "+"
@@ -238,7 +238,13 @@ let rec string_of_ast = function
     | Bool false -> "false"
     | Goto (label, _) -> "(goto :" ^ label ^ ")"
     | Yield (body, _) -> "(yield " ^ string_of_ast body ^ ")"
-    | Dim (name, len, _) -> "(dim " ^ name ^ " " ^ string_of_ast len ^ ")"
+    | Dim (name, lens, annotation, _) -> 
+        let lenstring = ( 
+            match lens with
+            | x :: [] -> string_of_ast x
+            | _ :: _ -> String.concat ", " (List.map string_of_ast lens)
+            | _ -> assert false) in
+        "(dim " ^ name ^ ": " ^ annotation ^ " " ^ lenstring ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
 
@@ -500,9 +506,14 @@ and parse_dim_stmt st pos =
     match ident with
     | Lexer.Ident (name, _) -> 
         let* _, st2' = expect_lparen st' in
-        let* size, st3' = parse_expr st2' in
+        let* size, st3' = parse_param_list_loop st2' [] in
         let* _, st4' = expect_rparen st3' in
-        Ok (Dim (name, size, pos), st4')
+        let* _, st5' = expect_colon st4' in
+        let* ident, st6' = expect_ident st5' in 
+        (match ident with
+        | Lexer.Ident (tname, _) -> 
+            Ok (Dim (name, size, tname, pos), st6')
+        | _ -> assert false)
     | _ -> assert false
 
 and parse_stmt st =

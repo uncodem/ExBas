@@ -53,11 +53,18 @@ let ( let* ) r f =
     | Ok x -> f x
     | Error e -> Error e
 
-let rec eql_types t1 t2 =
+(* let rec eql_types t1 t2 =
     match t1, t2 with
     | T_any, _ | _, T_any -> true
-    | T_int, T_int | T_string, T_string | T_float, T_float | T_bool, T_bool -> true
+    | T_int, T_int | T_string, T_string | T_float, T_float | T_bool, T_bool | T_none, T_none -> true
     | T_array x, T_array y -> eql_types x y 
+    | _ -> false *)
+
+let rec eql_types t1 t2 = 
+    match t1, t2 with
+    | T_any, _ | _, T_any -> true
+    | T_array x, T_array y -> eql_types x y
+    | _ when t1 = t2 -> true
     | _ -> false
 
 let rec iter_result f lst =
@@ -118,7 +125,7 @@ let rec annotate_node node =
     | Parser.If _ -> annotate_if node
     | Parser.Assign _ -> annotate_assign node
     | Parser.Let _ -> annotate_let node
-    | Parser.Dim _ -> annotate_dim node
+    | Parser.Dim _ -> Ok ({kind = T_none; node})
     | Parser.Index _ -> annotate_index node
     | Parser.Return (opt_expr, _) -> (
         match opt_expr with
@@ -130,8 +137,8 @@ let rec annotate_node node =
         let* exnode = annotate_node expr in
         Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
     | Parser.For _ -> annotate_for node
-    | Parser.While _ | Parser.FuncDef _  
-    | Parser.Goto _ | Parser.Label _ | Parser.Block _ -> Ok ({kind = T_none; node})
+    | Parser.While _ -> annotate_while node 
+    | Parser.FuncDef _ | Parser.Goto _ | Parser.Label _ | Parser.Block _ -> Ok ({kind = T_none; node})
     | Parser.Program stmts -> 
         let* _ = iter_result annotate_node stmts in
         Ok ({kind = T_none; node})
@@ -170,13 +177,13 @@ and annotate_let node =
         Ok ({kind = T_none; node})
     | _ -> assert false
 
-and annotate_dim node =
+(*and annotate_dim node =
     match node with
     | Parser.Dim (_, sizenode, _) ->
         let* size = annotate_node sizenode in
         if eql_types (typeof_node size) T_int then Ok({kind = T_none; node})
         else Error (ExpectedType (T_int, typeof_node size))
-    | _ -> assert false
+    | _ -> assert false *)
 
 and annotate_unary node =
     match node with 
@@ -216,4 +223,17 @@ and annotate_for node =
            else Error (ExpectedType (T_none, typeof_node bodynode))
         else Error (OnlyAllowed [T_int; T_float])
     | _ -> assert false 
+
+
+and annotate_while node =
+    match node with
+    | Parser.While (cond, body, _) ->
+        let* condnode = annotate_node cond in
+        let* bodynode = annotate_node body in
+        if eql_types (typeof_node condnode) T_bool then
+            if eql_types (typeof_node bodynode) T_none then
+                Ok ({kind = T_none; node})
+            else Error (ExpectedType (T_none, typeof_node bodynode))
+        else Error (ExpectedType (T_bool, typeof_node condnode))
+    | _ -> assert false
 
