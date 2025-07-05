@@ -19,7 +19,7 @@ let () =
     match res with
     | Ok a -> (
         print_endline (Parser.string_of_ast a);
-        match Checker.annotate_node a with
+        match Checker.checker_init a with
         | Ok _ -> print_endline "No error"
         | Error e -> Checker.checker_report e)
     | Error e -> Parser.parser_report e
