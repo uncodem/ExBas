@@ -439,22 +439,22 @@ and parse_let_stmt st =
         Ok (Let (ident_name, right, pos), st3')
     | _ -> assert false
 
-and parse_ident_list_loop st acc =
+and parse_sub_param_loop st acc =
     match peek st with
     | Some (Lexer.Ident (name, _)) ->  
         let _, st' = next st in (
             match peek st' with
             | Some (Lexer.Comma _) ->
                 let _, st2' = next st' in
-                parse_ident_list_loop st2' (name :: acc)
+                parse_sub_param_loop st2' (name :: acc)
             | Some (Lexer.RParen _) -> Ok (List.rev (name :: acc), st')
             | None -> Error UnexpectedEOF
             | Some t -> Error (UnexpectedToken (t, "Expected either RParen or Comma")))
     | _ -> Ok (List.rev acc, st)
 
-and parse_ident_list st =
+and parse_sub_param st =
     let* _, st' = expect_lparen st in
-    let* (ident_list, st2') = parse_ident_list_loop st' [] in
+    let* (ident_list, st2') = parse_sub_param_loop st' [] in
     let* _, st3' = expect_rparen st2' in
     Ok (ident_list, st3')
 
@@ -462,7 +462,7 @@ and parse_sub st =
     let* ident, st' = expect_ident st in
     match ident with
     | Lexer.Ident (name, pos) -> 
-        let* param_list, st2' = parse_ident_list st' in
+        let* param_list, st2' = parse_sub_param st' in
         let* _, st3' = expect_beginblock st2' in
         let* body, st4' = parse_block st3' in
         Ok (FuncDef (name, param_list, body, pos), st4')

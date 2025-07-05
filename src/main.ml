@@ -18,9 +18,9 @@ let () =
     let res = tokens |> Parser.parser_init |> Parser.parse_all in
     match res with
     | Ok a -> (
-        print_endline (Parser.string_of_ast a);
-        match Checker.checker_init a with
+        print_endline (Parser.string_of_ast a);)
+        (*match Checker.checker_init a with
         | Ok _ -> print_endline "No error"
-        | Error e -> Checker.checker_report e)
+        | Error e -> Checker.checker_report e) *)
     | Error e -> Parser.parser_report e
 
