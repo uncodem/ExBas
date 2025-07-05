@@ -20,6 +20,9 @@ type checker_error =
     | InvalidType of string * Lexer.token_pos
     | AnyNotAllowed of Lexer.token_pos
     | DisallowedFuncDef of Lexer.token_pos
+    | VarRedefinition of string * Lexer.token_pos
+    | LabelRedefinition of string * Lexer.token_pos
+    | FuncRedefinition of string * Lexer.token_pos
 
 type checker_state
 

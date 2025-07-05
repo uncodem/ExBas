@@ -150,7 +150,7 @@ type ast_node =
     | While of ast_node * ast_node * Lexer.token_pos
     | For of ast_node * ast_node * ast_node * ast_node * Lexer.token_pos
     | Goto of string * Lexer.token_pos
-    | Yield of ast_node * Lexer.token_pos
+    | Yield of ast_node option * Lexer.token_pos
     | Dim of string * ast_node list * string * Lexer.token_pos
 
 let string_of_binop = function
@@ -237,7 +237,7 @@ let rec string_of_ast = function
     | Bool true -> "true"
     | Bool false -> "false"
     | Goto (label, _) -> "(goto :" ^ label ^ ")"
-    | Yield (body, _) -> "(yield " ^ string_of_ast body ^ ")"
+    | Yield (body, _) -> "(yield " ^ if Option.is_some body then string_of_ast (Option.get body) else "" ^ ")"
     | Dim (name, lens, annotation, _) -> 
         let lenstring = ( 
             match lens with
@@ -498,8 +498,13 @@ and parse_goto st pos =
         | _ -> assert false
 
 and parse_yield_stmt st pos = 
-    let* body, st' = parse_expr st in
-    Ok (Yield (body, pos), st')
+    match peek st with
+    | Some Lexer.EndStmt _ -> 
+        let _, st' = next st in
+        Ok (Yield (None, pos), st')
+    | _ -> 
+        let* body, st' = parse_expr st in
+        Ok (Yield (Some body, pos), st')
 
 and parse_dim_stmt st pos =
     let* ident, st' = expect_ident st in

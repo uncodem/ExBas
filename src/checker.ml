@@ -12,7 +12,6 @@ type typed_node = {
     node: Parser.ast_node;
 }
 
-(* TODO: Implement stringified errors and allow line numbers *)
 type checker_error =
     | MismatchedTypes of node_type * node_type * Lexer.token_pos
     | ExpectedType of node_type * node_type * Lexer.token_pos
@@ -21,34 +20,80 @@ type checker_error =
     | InvalidType of string * Lexer.token_pos
     | AnyNotAllowed of Lexer.token_pos
     | DisallowedFuncDef of Lexer.token_pos
+    | VarRedefinition of string * Lexer.token_pos
+    | LabelRedefinition of string * Lexer.token_pos
+    | FuncRedefinition of string * Lexer.token_pos
+
+type envtype =
+    | Subroutine of node_type * node_type list option (* return, param types *)
+    | Variable of node_type * int (* type, scope_index *)
 
 type checker_state = {
     mutable current_line: Lexer.token_pos;
+    mutable scopes: (string, envtype) Hashtbl.t list;
+    mutable scope_index: int;
+    func_defs: (string, envtype) Hashtbl.t;
+    mutable in_block: bool;
+    mutable labels: string list;
+    mutable return_type: node_type option;
 }
 
-let rec string_of_node_type = function
-    | T_int -> "T_int"
-    | T_float -> "T_float"
-    | T_string -> "T_string"
-    | T_bool -> "T_bool"
-    | T_any -> "T_any"
-    | T_none -> "T_none"
-    | T_array x -> "T_array of " ^ string_of_node_type x
+let rec find_var scopes vname = 
+    match scopes with
+    | [] -> None
+    | hd :: tl ->
+        let res = Hashtbl.find_opt hd vname in
+        if Option.is_none res then find_var tl vname
+        else res
 
-(* Function will be used for type annotations, we don't allow arrays and T_none in annotations *)
-let node_type_of_string = function
+let new_scope state = 
+    state.scopes <- (Hashtbl.create 32) :: state.scopes;
+    state.scope_index <- (state.scope_index + 1)
+
+let del_scope state =
+    match state.scopes with
+    | [] -> failwith "checker: Attempted to delete scope with empty scope stack"
+    | _ :: tl -> 
+        state.scopes <- tl;
+        state.scope_index <- (state.scope_index - 1)
+
+let rec gen_arr_typing idx typing =
+    match idx with
+    | 1 -> typing
+    | 0 -> assert false
+    | _ -> T_array (gen_arr_typing (idx - 1) typing)
+
+let def_var state name vartype =
+    if Option.is_some (find_var state.scopes name) then Error (VarRedefinition (name, state.current_line))
+    else
+        match state.scopes with
+        | [] -> failwith "checker: Attempted to define var with empty scope stack"
+        | current :: _ -> 
+            Hashtbl.add current name (Variable (vartype, state.scope_index));
+            Ok ()
+
+let rec string_of_node_type = function
+    | T_int -> "int"
+    | T_float -> "float"
+    | T_string -> "string"
+    | T_bool -> "bool"
+    | T_any -> "any"
+    | T_none -> "none"
+    | T_array x -> "array of " ^ string_of_node_type x
+
+let rec node_type_of_string = function
     | "int" -> Some T_int
     | "float" -> Some T_float
     | "string" -> Some T_string
     | "any" -> Some T_any
     | "bool" -> Some T_bool
+    | "_" -> None
+    | s when s.[0] = '_' -> 
+        let child = node_type_of_string (String.sub s 1 ((String.length s) - 1)) in (
+        match child with
+        | Some x -> Some (T_array x)
+        | None -> None) 
     | _ -> None
-
-(* let rec gen_arr_typing idx typing =
-    match idx with
-    | 1 -> typing
-    | 0 -> assert false
-    | _ -> T_array (gen_arr_typing (idx - 1) typing) *)
 
 let checker_report err = 
     match err with
@@ -68,7 +113,12 @@ let checker_report err =
         print_endline ("checker: InvalidType '" ^ typestr ^ "' on line " ^ string_of_int line)
     | DisallowedFuncDef line -> 
         print_endline ("checker: DisallowedFuncDef sub definitions are not allowed inside blocks in line " ^ string_of_int line)
-
+    | VarRedefinition (vname, line) ->
+        print_endline ("checker: VarRedefinition redefinition of var " ^ vname ^ " in line " ^ string_of_int line)
+    | LabelRedefinition (label, line) ->
+        print_endline ("checker: LabelRedefinition redefinition of label " ^ label ^ " in line " ^ string_of_int line)
+    | FuncRedefinition (func, line) ->
+        print_endline ("checker: FuncRedefinition redefinition of sub " ^ func ^ " in line " ^ string_of_int line)
 
 let typeof_node {kind; _} = kind
 let nodeof_node {node; _} = node
@@ -164,8 +214,11 @@ let rec annotate_node state node =
         | _ -> Ok ({kind = T_none; node}))
     | Parser.Yield (expr, line) ->
         state.current_line <- line;
-        let* exnode = annotate_node state expr in
-        Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
+        if Option.is_some expr then
+            let* exnode = annotate_node state (Option.get expr) in
+            Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
+        else
+            Ok ({kind = T_none; node})
     | Parser.For _ -> annotate_for state node
     | Parser.While _ -> annotate_while state node 
     | Parser.FuncDef (_, _, body, line) -> 
@@ -313,6 +366,14 @@ and annotate_block state node =
     | _ -> assert false 
 
 let checker_init ast =
-    let state = { current_line = 0; } in
+    let state = { 
+        current_line = 0; 
+        scopes = [Hashtbl.create 32];
+        func_defs = Hashtbl.create 32;
+        labels = [];
+        scope_index = 0;
+        return_type = None;
+        in_block = false;
+    } in
     annotate_node state ast
 

@@ -39,7 +39,7 @@ type ast_node =
     | While of ast_node * ast_node * Lexer.token_pos
     | For of ast_node * ast_node * ast_node * ast_node * Lexer.token_pos
     | Goto of string * Lexer.token_pos
-    | Yield of ast_node * Lexer.token_pos
+    | Yield of ast_node option * Lexer.token_pos
     | Dim of string * ast_node list * string * Lexer.token_pos
 
 val parser_init : Lexer.token list -> parserstate
