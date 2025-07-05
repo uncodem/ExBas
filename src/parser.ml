@@ -145,7 +145,7 @@ type ast_node =
     | Let of string * ast_node * Lexer.token_pos
     | Assign of string * ast_node * Lexer.token_pos option
     | Label of string * Lexer.token_pos
-    | FuncDef of string * string list * ast_node * Lexer.token_pos
+    | FuncDef of string * (string * string) list * string * ast_node * Lexer.token_pos
     | Return of ast_node option * Lexer.token_pos
     | While of ast_node * ast_node * Lexer.token_pos
     | For of ast_node * ast_node * ast_node * ast_node * Lexer.token_pos
@@ -221,9 +221,11 @@ let rec string_of_ast = function
         "(= " ^ left ^ " " ^ string_of_ast right ^ ")"
     | Label (name, _) -> 
         ":" ^ name
-    | FuncDef (name, params, body, _) ->
-        let param_list = String.concat " " (name :: params) in
-        "(fdef (" ^ param_list ^ ") " ^ string_of_ast body ^ ")"
+    | FuncDef (name, rawparams, typing, body, _) ->
+        let params = (name, typing) :: rawparams
+        |> List.concat_map (fun (x, y) -> [x; y])
+        |> String.concat " " in
+        "(fdef (" ^ params ^ ") " ^ string_of_ast body ^ ")"
     | Return (Some x, _) ->
         "(return " ^ string_of_ast x ^ ")"
     | Return (None, _) ->
@@ -439,7 +441,7 @@ and parse_let_stmt st =
         Ok (Let (ident_name, right, pos), st3')
     | _ -> assert false
 
-and parse_sub_param_loop st acc =
+(* and parse_sub_param_loop st acc =
     match peek st with
     | Some (Lexer.Ident (name, _)) ->  
         let _, st' = next st in (
@@ -450,7 +452,26 @@ and parse_sub_param_loop st acc =
             | Some (Lexer.RParen _) -> Ok (List.rev (name :: acc), st')
             | None -> Error UnexpectedEOF
             | Some t -> Error (UnexpectedToken (t, "Expected either RParen or Comma")))
+    | _ -> Ok (List.rev acc, st) *)
+
+and parse_sub_param_loop st acc =
+    match peek st with
+    | Some (Lexer.Ident (name, _)) ->
+        let* _, st' = expect_ident st in
+        let* _, st2' = expect_colon st' in
+        let* type_ident, st3' = expect_ident st2' in(
+        match type_ident with
+        | Lexer.Ident (typing, _) ->
+            (match peek st3' with
+                | Some (Lexer.Comma _) ->
+                    let _, st4' = next st3' in
+                    parse_sub_param_loop st4' ((name, typing) :: acc)
+                | Some (Lexer.RParen _) -> Ok (List.rev ((name, typing) :: acc), st3')
+                | None -> Error UnexpectedEOF
+                | Some t -> Error (UnexpectedToken (t, "Expected either RParen or Comma")))
+        | _ -> assert false)
     | _ -> Ok (List.rev acc, st)
+
 
 and parse_sub_param st =
     let* _, st' = expect_lparen st in
@@ -463,9 +484,14 @@ and parse_sub st =
     match ident with
     | Lexer.Ident (name, pos) -> 
         let* param_list, st2' = parse_sub_param st' in
-        let* _, st3' = expect_beginblock st2' in
-        let* body, st4' = parse_block st3' in
-        Ok (FuncDef (name, param_list, body, pos), st4')
+        let* _, st3' = expect_colon st2' in
+        let* typ, st4' = expect_ident st3' in (
+        match typ with
+        | Lexer.Ident (typname, _) -> 
+            let* _, st5' = expect_beginblock st4' in
+            let* body, st6' = parse_block st5' in
+            Ok (FuncDef (name, param_list, typname, body, pos), st6')
+        | _ -> assert false)
     | _ -> assert false
 
 and parse_while st pos =

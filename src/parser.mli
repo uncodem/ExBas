@@ -34,7 +34,7 @@ type ast_node =
     | Let of string * ast_node * Lexer.token_pos
     | Assign of string * ast_node * Lexer.token_pos option
     | Label of string * Lexer.token_pos
-    | FuncDef of string * string list * ast_node * Lexer.token_pos
+    | FuncDef of string * (string * string) list * string * ast_node * Lexer.token_pos
     | Return of ast_node option * Lexer.token_pos
     | While of ast_node * ast_node * Lexer.token_pos
     | For of ast_node * ast_node * ast_node * ast_node * Lexer.token_pos
