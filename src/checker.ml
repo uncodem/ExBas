@@ -133,6 +133,7 @@ let rec annotate_node state node =
         let* _ = iter_result (annotate_node state) params in
         Ok ({ kind = T_none; node })
     | Parser.Binary (op, left_node, right_node) ->
+        let current_line = state.current_line in
         let* left = annotate_node state left_node in
         let* right = annotate_node state right_node in
         if eql_types (typeof_node left) (typeof_node right) then 
@@ -143,10 +144,10 @@ let rec annotate_node state node =
                 | _ when bool_op -> T_bool
                 | _ -> assert false
             ) in
-            if bool_op && (left.kind = T_any || right.kind = T_any) then Error (AnyNotAllowed state.current_line)
+            if bool_op && (left.kind = T_any || right.kind = T_any) then Error (AnyNotAllowed current_line)
             else Ok ({kind = node_kind; node})
         else
-            Error (MismatchedTypes (typeof_node left, typeof_node right, state.current_line))
+            Error (MismatchedTypes (typeof_node left, typeof_node right, current_line))
     | Parser.Unary _ -> annotate_unary state node
     | Parser.If _ -> annotate_if state node
     | Parser.Assign _ -> annotate_assign state node
@@ -177,6 +178,7 @@ let rec annotate_node state node =
         Ok ({kind = T_none; node})
 
 and annotate_if state node =
+    let current_line = state.current_line in
     match node with
     | Parser.If (cond_node, tblock, opt_else, opt_pos) ->
         let if_type = (match opt_pos with Some _ -> T_none | _ -> T_any) in
@@ -192,7 +194,7 @@ and annotate_if state node =
                 let* enode = annotate_node state else_node in
                 if if_type = T_none then Ok { kind = T_none; node }
                 else if eql_types tnode.kind enode.kind then Ok { kind = tnode.kind; node }
-                else Error (MismatchedTypes (typeof_node tnode, typeof_node enode, state.current_line))
+                else Error (MismatchedTypes (typeof_node tnode, typeof_node enode, current_line))
             | None -> Ok ({kind = if_type; node}))
     | _ -> assert false
 
@@ -233,15 +235,17 @@ and annotate_dim state node =
     | _ -> assert false 
 
 and annotate_unary state node =
+    let current_line = state.current_line in
     match node with 
     | Parser.Unary (op, right) ->
         let u_type = if op = Parser.Not then T_bool else T_int in
         let* rnode = annotate_node state right in
         if eql_types (typeof_node rnode) u_type then Ok ({kind=u_type; node})
-        else Error (ExpectedType (u_type, typeof_node rnode, state.current_line))
+        else Error (ExpectedType (u_type, typeof_node rnode, current_line))
     | _ -> assert false
 
 and annotate_index state node =
+    let current_line = state.current_line in
     match node with
     | Parser.Index (var, idx) ->
         let* left = annotate_node state var in
@@ -251,8 +255,8 @@ and annotate_index state node =
             | T_array x -> Ok ({kind = x; node})
             | T_string -> Ok ({kind = T_int; node}) (* The VM has no char type, it returns an int for whenever a string is indexed *)
             | T_any -> Ok ({kind = T_any; node}) (* Temporary measure *)
-            | _ -> Error (ExpectedEither (T_array T_any, T_string, typeof_node left, state.current_line)))
-        else Error (ExpectedType (T_int, typeof_node right, state.current_line))
+            | _ -> Error (ExpectedEither (T_array T_any, T_string, typeof_node left, current_line)))
+        else Error (ExpectedType (T_int, typeof_node right, current_line))
     | _ -> assert false
 
 and annotate_for state node =
