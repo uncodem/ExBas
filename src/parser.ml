@@ -553,7 +553,10 @@ and parse_stmt st =
     | Some (Lexer.Ident (name, pos)) -> (
         let t = peek st' in
         match t with
-        | Some (Lexer.Oper ("=", _)) -> parse_assignment st 
+        | Some (Lexer.Oper ("=", _)) -> 
+            let _, st2' = next st' in
+            let* right_side, st3' = parse_expr st2' in
+            Ok (Assign (name, right_side, Some pos), st3')
         | Some (Lexer.LParen _) -> 
             let* param_list, st2' = parse_param_list st' in
             let* _, st3' = expect_endstmt st2' in
