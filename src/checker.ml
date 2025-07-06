@@ -27,7 +27,7 @@ type checker_error =
     | UndefinedIdentifier of string * Lexer.token_pos
 
 type envtype =
-    (* | Subroutine of node_type * node_type list option (* return, param types *) *)
+(*    | Subroutine of node_type * node_type list option (* return, param types *) *)
     | Variable of node_type (* type *)
 
 type checker_state = {
@@ -42,6 +42,11 @@ let ( let* ) r f =
     match r with
     | Ok x -> f x
     | Error e -> Error e
+
+let envtype_get enode =
+    match enode with
+    | Variable x -> x
+(*    | Subroutine (ret_type, _) -> ret_type *)
 
 let rec collect_labels node acc = 
     match node with
@@ -287,15 +292,21 @@ and annotate_if state node =
 
 and annotate_assign state node =
     match node with
-    | Parser.Assign (_, valnode, opt_pos) ->
+    | Parser.Assign (name, valnode, opt_pos) ->
         (if Option.is_some opt_pos then
             state.current_line <- Option.get opt_pos
             else ());
-        let* v = annotate_node state valnode in
-        if Option.is_some opt_pos then
-            Ok ({kind = T_none; node})
+        let var_opt = find_var state.scopes name in 
+        if Option.is_some var_opt then
+            let vtype = envtype_get (Option.get var_opt) in 
+            let* v = annotate_node state valnode in
+            if eql_types vtype (typeof_node v) then
+                if Option.is_some opt_pos then Ok ({kind = T_none; node})
+                else Ok ({kind = typeof_node v; node})
+            else
+                Error (MismatchedTypes (vtype, v.kind, state.current_line))
         else 
-            Ok ({kind = typeof_node v; node})
+            Error (UndefinedIdentifier (name, state.current_line))
     | _ -> assert false
 
 and annotate_let state node = 
