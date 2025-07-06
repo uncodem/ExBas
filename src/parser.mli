@@ -32,7 +32,7 @@ type ast_node =
     | Var of string
     | If of ast_node * ast_node * ast_node option * Lexer.token_pos option
     | Let of string * ast_node * Lexer.token_pos
-    | Assign of string * ast_node * Lexer.token_pos option
+    | Assign of ast_node * ast_node * Lexer.token_pos option
     | Label of string * Lexer.token_pos
     | FuncDef of string * (string * string) list * string * ast_node * Lexer.token_pos
     | Return of ast_node option * Lexer.token_pos

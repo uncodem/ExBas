@@ -143,7 +143,7 @@ type ast_node =
     | Var of string
     | If of ast_node * ast_node * ast_node option * Lexer.token_pos option
     | Let of string * ast_node * Lexer.token_pos
-    | Assign of string * ast_node * Lexer.token_pos option
+    | Assign of ast_node * ast_node * Lexer.token_pos option
     | Label of string * Lexer.token_pos
     | FuncDef of string * (string * string) list * string * ast_node * Lexer.token_pos
     | Return of ast_node option * Lexer.token_pos
@@ -218,7 +218,7 @@ let rec string_of_ast = function
     | Let (left, right, _) -> 
         "(let " ^ left ^ " " ^ string_of_ast right ^ ")"
     | Assign (left, right, _) ->
-        "(= " ^ left ^ " " ^ string_of_ast right ^ ")"
+        "(= " ^ string_of_ast left ^ " " ^ string_of_ast right ^ ")"
     | Label (name, _) -> 
         ":" ^ name
     | FuncDef (name, rawparams, typing, body, _) ->
@@ -390,12 +390,12 @@ and parse_assignment st =
     match peek st' with
     | Some (Lexer.Oper ("=", _)) -> ( 
         match left with
-        | Var vname ->
+        | Var _ | Index _ ->
             let _, st2' = next st' in
             let* rhs, st3' = parse_assignment st2' in
-            Ok (Assign (vname, rhs, None), st3')
+            Ok (Assign (left, rhs, None), st3')
         | _ -> 
-            Error (UnexpectedToken ((Option.get (peek st')), "Left side of assignment must be variable")))
+            Error (UnexpectedToken ((Option.get (peek st')), "Left side of assignment must be variable or index")))
     | _ -> Ok (left, st')
 
 and parse_if_stmt st =
@@ -440,19 +440,6 @@ and parse_let_stmt st =
         let* right, st3' = parse_expr st2' in
         Ok (Let (ident_name, right, pos), st3')
     | _ -> assert false
-
-(* and parse_sub_param_loop st acc =
-    match peek st with
-    | Some (Lexer.Ident (name, _)) ->  
-        let _, st' = next st in (
-            match peek st' with
-            | Some (Lexer.Comma _) ->
-                let _, st2' = next st' in
-                parse_sub_param_loop st2' (name :: acc)
-            | Some (Lexer.RParen _) -> Ok (List.rev (name :: acc), st')
-            | None -> Error UnexpectedEOF
-            | Some t -> Error (UnexpectedToken (t, "Expected either RParen or Comma")))
-    | _ -> Ok (List.rev acc, st) *)
 
 and parse_sub_param_loop st acc =
     match peek st with
@@ -556,7 +543,7 @@ and parse_stmt st =
         | Some (Lexer.Oper ("=", _)) -> 
             let _, st2' = next st' in
             let* right_side, st3' = parse_expr st2' in
-            Ok (Assign (name, right_side, Some pos), st3')
+            Ok (Assign (Var name, right_side, Some pos), st3')
         | Some (Lexer.LParen _) -> 
             let* param_list, st2' = parse_param_list st' in
             let* _, st3' = expect_endstmt st2' in
@@ -564,6 +551,12 @@ and parse_stmt st =
         | Some (Lexer.Colon pos) ->
             let _, st2' = next st' in
             Ok (Label (name, pos), st2')
+        | Some (Lexer.LBracket pos) ->
+            let* lhs, st2' = parse_postfix (Var name) st' in
+            let* _, st3' = expect_eql st2' in
+            let* rhs, st4' = parse_expr st3' in
+            let* _, st5' = expect_endstmt st4' in
+            Ok (Assign (lhs, rhs, Some pos), st5')
         | _ -> Error (UnexpectedToken (Option.get t, "Expected either assignment, label, or function call")))
     | Some (Lexer.If _) -> parse_if_stmt st'
     | Some (Lexer.Let _) -> parse_let_stmt st'

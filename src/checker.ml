@@ -43,11 +43,6 @@ let ( let* ) r f =
     | Ok x -> f x
     | Error e -> Error e
 
-let envtype_get enode =
-    match enode with
-    | Variable x -> x
-(*    | Subroutine (ret_type, _) -> ret_type *)
-
 let rec collect_labels node acc = 
     match node with
     | Parser.Label (name, line) ->
@@ -290,12 +285,13 @@ and annotate_if state node =
             | None -> Ok ({kind = if_type; node}))
     | _ -> assert false
 
-and annotate_assign state node =
+(*and annotate_assign state node =
     match node with
-    | Parser.Assign (name, valnode, opt_pos) ->
+    | Parser.Assign (left, valnode, opt_pos) ->
         (if Option.is_some opt_pos then
             state.current_line <- Option.get opt_pos
             else ());
+        let* left_node = annotate_node state left in
         let var_opt = find_var state.scopes name in 
         if Option.is_some var_opt then
             let vtype = envtype_get (Option.get var_opt) in 
@@ -307,6 +303,21 @@ and annotate_assign state node =
                 Error (MismatchedTypes (vtype, v.kind, state.current_line))
         else 
             Error (UndefinedIdentifier (name, state.current_line))
+    | _ -> assert false *)
+
+and annotate_assign state node =
+    match node with
+    | Parser.Assign (left, right, opt_pos) ->
+        (match opt_pos with
+         | Some line -> state.current_line <- line 
+         | None -> ());
+        let* lhs = annotate_node state left in
+        let* rhs = annotate_node state right in
+        if eql_types (typeof_node lhs) (typeof_node rhs) then
+            if Option.is_some opt_pos then Ok ({kind = T_none; node})
+            else Ok ({kind = decide_if_any lhs.kind rhs.kind; node})
+        else 
+            Error (MismatchedTypes (lhs.kind, rhs.kind, state.current_line))
     | _ -> assert false
 
 and annotate_let state node = 
