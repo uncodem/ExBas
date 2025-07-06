@@ -285,26 +285,6 @@ and annotate_if state node =
             | None -> Ok ({kind = if_type; node}))
     | _ -> assert false
 
-(*and annotate_assign state node =
-    match node with
-    | Parser.Assign (left, valnode, opt_pos) ->
-        (if Option.is_some opt_pos then
-            state.current_line <- Option.get opt_pos
-            else ());
-        let* left_node = annotate_node state left in
-        let var_opt = find_var state.scopes name in 
-        if Option.is_some var_opt then
-            let vtype = envtype_get (Option.get var_opt) in 
-            let* v = annotate_node state valnode in
-            if eql_types vtype (typeof_node v) then
-                if Option.is_some opt_pos then Ok ({kind = T_none; node})
-                else Ok ({kind = typeof_node v; node})
-            else
-                Error (MismatchedTypes (vtype, v.kind, state.current_line))
-        else 
-            Error (UndefinedIdentifier (name, state.current_line))
-    | _ -> assert false *)
-
 and annotate_assign state node =
     match node with
     | Parser.Assign (left, right, opt_pos) ->
