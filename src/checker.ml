@@ -34,10 +34,36 @@ type checker_state = {
     mutable current_line: Lexer.token_pos;
     mutable scopes: (string, envtype) Hashtbl.t list;
     mutable in_block: int;
-    mutable labels: string list;
+    labels: string list;
  (*   func_defs: (string, envtype) Hashtbl.t;
     mutable return_type: node_type option; *)
 }
+let ( let* ) r f =
+    match r with
+    | Ok x -> f x
+    | Error e -> Error e
+
+let rec collect_labels node acc = 
+    match node with
+    | Parser.Label (name, line) ->
+        if List.mem name acc then Error (LabelRedefinition (name, line))
+        else Ok (name :: acc)
+    | Parser.While (_, b, _) ->
+        collect_labels b acc
+    | Parser.For (_, _, _, b, _) -> 
+        collect_labels b acc
+    | Parser.FuncDef  (_, _, _, b, _) ->
+        collect_labels b acc
+    | Parser.Program b | Parser.Block b ->
+        iter_collect_labels b acc
+    | _ -> Ok acc
+
+and iter_collect_labels lst acc =
+    match lst with
+    | [] -> Ok acc
+    | hd :: tl -> 
+        let* acc = collect_labels hd acc in 
+        iter_collect_labels tl acc 
 
 let rec find_var scopes vname = 
     match scopes with
@@ -125,11 +151,6 @@ let checker_report err =
 
 let typeof_node {kind; _} = kind
 let nodeof_node {node; _} = node
-
-let ( let* ) r f =
-    match r with
-    | Ok x -> f x
-    | Error e -> Error e
 
 let rec eql_types t1 t2 = 
     match t1, t2 with
@@ -238,16 +259,10 @@ let rec annotate_node state node =
         state.current_line <- line;
         if List.mem label state.labels then Ok ({kind = T_none; node})
         else Error (UndefinedIdentifier (label, state.current_line))
-    | Parser.Label (label, line) -> 
-        state.current_line <- line;
-        if List.mem label state.labels then Error (LabelRedefinition (label, state.current_line))
-        else begin
-            state.labels <- label :: state.labels;
-            Ok ({kind = T_none; node})
-            end
     | Parser.Program stmts -> 
         let* _ = iter_result (annotate_node state) stmts in
         Ok ({kind = T_none; node})
+    | Parser.Label _ -> Ok ({kind = T_none; node})
 
 and annotate_if state node =
     let current_line = state.current_line in
@@ -393,11 +408,13 @@ and annotate_block state node =
     | _ -> assert false 
 
 let checker_init ast =
+    let* collected = collect_labels ast [] in
+    List.iter print_endline collected;
     let state = { 
         current_line = 0; 
         scopes = [Hashtbl.create 32];
         in_block = 0;
-        labels = [];
+        labels = collected;
         (* func_defs = Hashtbl.create 32; 
         return_type = None; *)
     } in
