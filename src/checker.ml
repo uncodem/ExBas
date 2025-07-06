@@ -34,8 +34,8 @@ type checker_state = {
     mutable current_line: Lexer.token_pos;
     mutable scopes: (string, envtype) Hashtbl.t list;
     mutable in_block: int;
- (*   func_defs: (string, envtype) Hashtbl.t;
     mutable labels: string list;
+ (*   func_defs: (string, envtype) Hashtbl.t;
     mutable return_type: node_type option; *)
 }
 
@@ -234,7 +234,17 @@ let rec annotate_node state node =
         state.current_line <- line;
         let* _ = annotate_block state body in
         Ok ({kind = T_none; node})
-    | Parser.Goto _ | Parser.Label _ -> Ok ({kind = T_none; node})
+    | Parser.Goto (label, line) -> 
+        state.current_line <- line;
+        if List.mem label state.labels then Ok ({kind = T_none; node})
+        else Error (UndefinedIdentifier (label, state.current_line))
+    | Parser.Label (label, line) -> 
+        state.current_line <- line;
+        if List.mem label state.labels then Error (LabelRedefinition (label, state.current_line))
+        else begin
+            state.labels <- label :: state.labels;
+            Ok ({kind = T_none; node})
+            end
     | Parser.Program stmts -> 
         let* _ = iter_result (annotate_node state) stmts in
         Ok ({kind = T_none; node})
@@ -387,8 +397,8 @@ let checker_init ast =
         current_line = 0; 
         scopes = [Hashtbl.create 32];
         in_block = 0;
-        (* func_defs = Hashtbl.create 32; 
         labels = [];
+        (* func_defs = Hashtbl.create 32; 
         return_type = None; *)
     } in
     annotate_node state ast
