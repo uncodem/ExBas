@@ -23,6 +23,8 @@ type checker_error =
     | VarRedefinition of string * Lexer.token_pos
     | LabelRedefinition of string * Lexer.token_pos
     | FuncRedefinition of string * Lexer.token_pos
+    | DisallowedYield of Lexer.token_pos
+    | UndefinedIdentifier of string * Lexer.token_pos
 
 type checker_state
 

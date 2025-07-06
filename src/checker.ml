@@ -23,19 +23,20 @@ type checker_error =
     | VarRedefinition of string * Lexer.token_pos
     | LabelRedefinition of string * Lexer.token_pos
     | FuncRedefinition of string * Lexer.token_pos
+    | DisallowedYield of Lexer.token_pos
+    | UndefinedIdentifier of string * Lexer.token_pos
 
 type envtype =
-    | Subroutine of node_type * node_type list option (* return, param types *)
-    | Variable of node_type * int (* type, scope_index *)
+    (* | Subroutine of node_type * node_type list option (* return, param types *) *)
+    | Variable of node_type (* type *)
 
 type checker_state = {
     mutable current_line: Lexer.token_pos;
     mutable scopes: (string, envtype) Hashtbl.t list;
-    mutable scope_index: int;
-    func_defs: (string, envtype) Hashtbl.t;
-    mutable in_block: bool;
+    mutable in_block: int;
+ (*   func_defs: (string, envtype) Hashtbl.t;
     mutable labels: string list;
-    mutable return_type: node_type option;
+    mutable return_type: node_type option; *)
 }
 
 let rec find_var scopes vname = 
@@ -47,20 +48,17 @@ let rec find_var scopes vname =
         else res
 
 let new_scope state = 
-    state.scopes <- (Hashtbl.create 32) :: state.scopes;
-    state.scope_index <- (state.scope_index + 1)
+    state.scopes <- (Hashtbl.create 32) :: state.scopes
 
 let del_scope state =
     match state.scopes with
     | [] -> failwith "checker: Attempted to delete scope with empty scope stack"
     | _ :: tl -> 
-        state.scopes <- tl;
-        state.scope_index <- (state.scope_index - 1)
+        state.scopes <- tl
 
 let rec gen_arr_typing idx typing =
     match idx with
-    | 1 -> typing
-    | 0 -> assert false
+    | 0 -> typing
     | _ -> T_array (gen_arr_typing (idx - 1) typing)
 
 let def_var state name vartype =
@@ -69,7 +67,7 @@ let def_var state name vartype =
         match state.scopes with
         | [] -> failwith "checker: Attempted to define var with empty scope stack"
         | current :: _ -> 
-            Hashtbl.add current name (Variable (vartype, state.scope_index));
+            Hashtbl.add current name (Variable vartype);
             Ok ()
 
 let rec string_of_node_type = function
@@ -87,6 +85,7 @@ let rec node_type_of_string = function
     | "string" -> Some T_string
     | "any" -> Some T_any
     | "bool" -> Some T_bool
+    | "none" -> Some T_none
     | "_" -> None
     | s when s.[0] = '_' -> 
         let child = node_type_of_string (String.sub s 1 ((String.length s) - 1)) in (
@@ -119,6 +118,10 @@ let checker_report err =
         print_endline ("checker: LabelRedefinition redefinition of label " ^ label ^ " in line " ^ string_of_int line)
     | FuncRedefinition (func, line) ->
         print_endline ("checker: FuncRedefinition redefinition of sub " ^ func ^ " in line " ^ string_of_int line)
+    | DisallowedYield line ->
+        print_endline ("checker: DisallowedYield yield only allowed in blocks in line " ^ string_of_int line)
+    | UndefinedIdentifier (name, line) ->
+        print_endline ("checker: UndefinedIdentifier " ^ name ^ " in line " ^ string_of_int line)
 
 let typeof_node {kind; _} = kind
 let nodeof_node {node; _} = node
@@ -174,7 +177,11 @@ let rec annotate_node state node =
     | Parser.String _ -> Ok ({ kind = T_string; node })
     | Parser.Bool _ -> Ok ({ kind = T_bool; node})
     | Parser.Float _ -> Ok ({ kind = T_float; node })
-    | Parser.Var _ -> Ok ({ kind = T_any; node })
+    | Parser.Var vname -> 
+        let res = find_var state.scopes vname in (
+        match res with
+        | Some (Variable t) -> Ok ({ kind = t; node })
+        | _ -> Error (UndefinedIdentifier (vname, state.current_line)))
     | Parser.Call (_, params) ->
         let* _ = iter_result (annotate_node state) params in
         Ok ({ kind = T_any; node })
@@ -214,14 +221,16 @@ let rec annotate_node state node =
         | _ -> Ok ({kind = T_none; node}))
     | Parser.Yield (expr, line) ->
         state.current_line <- line;
-        if Option.is_some expr then
-            let* exnode = annotate_node state (Option.get expr) in
-            Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
-        else
-            Ok ({kind = T_none; node})
+        if state.in_block = 0 then Error (DisallowedYield state.current_line) 
+            else
+            if Option.is_some expr then
+                let* exnode = annotate_node state (Option.get expr) in
+                Ok ({kind = typeof_node exnode; node}) (* While this is a statement node, Block needs this to have a type *)
+            else
+                Ok ({kind = T_none; node})
     | Parser.For _ -> annotate_for state node
     | Parser.While _ -> annotate_while state node 
-    | Parser.FuncDef (_, _, body, line) -> 
+    | Parser.FuncDef (_, _, _, body, line) -> 
         state.current_line <- line;
         let* _ = annotate_block state body in
         Ok ({kind = T_none; node})
@@ -266,23 +275,27 @@ and annotate_assign state node =
 
 and annotate_let state node = 
     match node with
-    | Parser.Let (_, valnode, pos) ->
+    | Parser.Let (vname, right, pos) ->
         state.current_line <- pos;
-        let* _ = annotate_node state valnode in
+        let* var = annotate_node state right in
+        let* _ = def_var state vname (typeof_node var) in
         Ok ({kind = T_none; node})
     | _ -> assert false
 
 and annotate_dim state node =
     match node with
-    | Parser.Dim (_, sizes, typestr, pos) -> 
+    | Parser.Dim (name, sizes, typestr, pos) -> 
         state.current_line <- pos;
         let* sizenodes = iter_result_acc (annotate_node state) sizes [] in
-        let validate acc y = acc && (eql_types y.kind T_int) in
-        let is_valid = List.fold_left validate true sizenodes in
+        let is_valid = List.for_all (fun x -> eql_types x.kind T_int) sizenodes in
         if is_valid then 
             let arrtype = node_type_of_string typestr in
             (match arrtype with
-            | Some _ -> Ok ({kind = T_none; node})
+            | Some T_none | Some (T_array _) -> 
+                Error (OnlyAllowed ([T_int; T_float; T_bool; T_string; T_any], state.current_line))
+            | Some t -> 
+                let* _ = def_var state name (gen_arr_typing (List.length sizes) t) in
+                Ok ({kind = T_none; node})
             | None -> Error (InvalidType (typestr, state.current_line)))
         else Error (OnlyAllowed ([T_int], state.current_line))
     | _ -> assert false 
@@ -345,6 +358,7 @@ and annotate_while state node =
 
 and annotate_block state node =
     let block_type = ref T_none in
+    state.in_block <- (state.in_block + 1);
     let aux a =
         match nodeof_node a with
         | Parser.Yield _ -> 
@@ -357,11 +371,14 @@ and annotate_block state node =
     in
     match node with
     | Parser.Block stmts ->
+        new_scope state;
         let nested_fdef = List.exists (function | Parser.FuncDef _ -> true | _ -> false) stmts in
         if nested_fdef then Error (DisallowedFuncDef state.current_line)
         else
         let* tstmts = iter_result_acc (annotate_node state) stmts [] in
         let* _ = iter_result aux tstmts in
+        state.in_block <- (state.in_block - 1);
+        del_scope state;
         Ok ({kind = !block_type; node})
     | _ -> assert false 
 
@@ -369,11 +386,10 @@ let checker_init ast =
     let state = { 
         current_line = 0; 
         scopes = [Hashtbl.create 32];
-        func_defs = Hashtbl.create 32;
+        in_block = 0;
+        (* func_defs = Hashtbl.create 32; 
         labels = [];
-        scope_index = 0;
-        return_type = None;
-        in_block = false;
+        return_type = None; *)
     } in
     annotate_node state ast
 
