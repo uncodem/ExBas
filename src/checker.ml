@@ -27,7 +27,7 @@ type checker_error =
     | UndefinedIdentifier of string * Lexer.token_pos
 
 type envtype =
-(*    | Subroutine of node_type * node_type list option (* return, param types *) *)
+    | Subroutine of node_type * node_type list option (* return, param types *)
     | Variable of node_type (* type *)
 
 type checker_state = {
@@ -35,8 +35,8 @@ type checker_state = {
     mutable scopes: (string, envtype) Hashtbl.t list;
     mutable in_block: int;
     labels: string list;
- (*   func_defs: (string, envtype) Hashtbl.t;
-    mutable return_type: node_type option; *)
+    func_defs: (string, envtype) Hashtbl.t;
+    mutable return_type: node_type option;
 }
 let ( let* ) r f =
     match r with
@@ -73,6 +73,11 @@ let rec find_var scopes vname =
         if Option.is_none res then find_var tl vname
         else res
 
+let find_func funcs name =
+    match Hashtbl.find_opt funcs name with
+    | Some (Subroutine (ret_type, params)) -> Some (ret_type, params)
+    | _ -> None
+
 let new_scope state = 
     state.scopes <- (Hashtbl.create 32) :: state.scopes
 
@@ -95,6 +100,13 @@ let def_var state name vartype =
         | current :: _ -> 
             Hashtbl.add current name (Variable vartype);
             Ok ()
+
+let def_func state name rtype params =
+    if Hashtbl.mem state.func_defs name then Error (FuncRedefinition (name, state.current_line))
+    else begin
+        Hashtbl.add state.func_defs name (Subroutine (rtype, params));
+        Ok ()
+    end
 
 let rec string_of_node_type = function
     | T_int -> "int"
@@ -417,8 +429,8 @@ let checker_init ast =
         scopes = [Hashtbl.create 32];
         in_block = 0;
         labels = collected;
-        (* func_defs = Hashtbl.create 32; 
-        return_type = None; *)
+        func_defs = Hashtbl.create 32; 
+        return_type = None;
     } in
     annotate_node state ast
 
