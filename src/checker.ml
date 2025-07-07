@@ -22,6 +22,7 @@ type checker_error =
     | FuncRedefinition of string * Lexer.token_pos
     | DisallowedYield of Lexer.token_pos
     | UndefinedIdentifier of string * Lexer.token_pos
+    | DisallowedReturn of Lexer.token_pos
 
 type envtype =
     | Subroutine of node_type * node_type list option (* return, param types *)
@@ -178,6 +179,10 @@ let checker_report err =
         print_endline
           ("checker: UndefinedIdentifier " ^ name ^ " in line "
          ^ string_of_int line)
+    | DisallowedReturn line ->
+        print_endline
+          ("checker: DisallowedReturn return only allowed in function bodies. \
+            Line " ^ string_of_int line)
 
 let typeof_node { kind; _ } = kind
 let nodeof_node { node; _ } = node
@@ -269,14 +274,25 @@ let rec annotate_node state node =
     | Parser.Dim _ -> annotate_dim state node
     | Parser.Index _ -> annotate_index state node
     | Parser.Block _ -> annotate_block state node
-    | Parser.Return (opt_expr, line) -> (
+    | Parser.Return (Some expr, line) -> (
         state.current_line <- line;
-        match opt_expr with
-        | Some expr ->
-            let* ret_node = annotate_node state expr in
-            Ok { kind = typeof_node ret_node; node }
-            (* While technically a statement, FuncDef needs this to have a type*)
-        | _ -> Ok { kind = T_none; node })
+        let* rnode = annotate_node state expr in
+        match state.return_type with
+        | Some ret_type ->
+            if eql_types ret_type (typeof_node rnode) then
+              Ok { kind = typeof_node rnode; node }
+            else
+              Error
+                (MismatchedTypes
+                   (ret_type, typeof_node rnode, state.current_line))
+        | None -> Error (DisallowedReturn state.current_line))
+    | Parser.Return (None, line) -> (
+        state.current_line <- line;
+        match state.return_type with
+        | Some rtype ->
+            if eql_types rtype T_none then Ok { kind = T_none; node }
+            else Error (MismatchedTypes (rtype, T_none, state.current_line))
+        | None -> Error (DisallowedReturn state.current_line))
     | Parser.Yield (expr, line) ->
         state.current_line <- line;
         if state.in_block = 0 then Error (DisallowedYield state.current_line)
@@ -399,7 +415,7 @@ and annotate_index state node =
           | T_string ->
               Ok { kind = T_int; node }
               (* The VM has no char type, it returns an int for whenever a string is indexed *)
-          | T_any -> Ok { kind = T_any; node } (* Temporary measure *)
+          | T_any -> Ok { kind = T_any; node } 
           | _ ->
               Error
                 (ExpectedEither

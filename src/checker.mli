@@ -22,6 +22,7 @@ type checker_error =
     | FuncRedefinition of string * Lexer.token_pos
     | DisallowedYield of Lexer.token_pos
     | UndefinedIdentifier of string * Lexer.token_pos
+    | DisallowedReturn of Lexer.token_pos
 
 type checker_state
 
