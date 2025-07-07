@@ -32,7 +32,7 @@ const BytecodeIter = struct {
 
 pub fn countOperands(opc: Opcode) !u8 {
     return switch(opc) {
-        .OP_CAST, .OP_CONST => 1,
+        .OP_CAST, .OP_CONST, .OP_NATIVE => 1,
 
         .OP_PUSHVAR, .OP_POPVAR, .OP_CREATEARRAY,
         .OP_INITARRAY, .OP_CGET, .OP_CSET, .OP_JMP, .OP_TJMP, .OP_CALL, .OP_TCALL, => 2,
@@ -41,7 +41,7 @@ pub fn countOperands(opc: Opcode) !u8 {
         .OP_OR, .OP_NOT, .OP_LESS, .OP_EQL, 
         .OP_EQLESS, .OP_EQMORE, .OP_NEQL, 
         .OP_SIZE, .OP_COPY, .OP_STARTSCOPE, .OP_ENDSCOPE, .OP_SWAP, 
-        .OP_DUMP, .OP_RET, .OP_DROP, .OP_RSET, .OP_RGET, .OP_DUP, .OP_INPUT, .OP_DEFVAR => 0,
+        .OP_DUMP, .OP_RET, .OP_DROP, .OP_RSET, .OP_RGET, .OP_DUP, .OP_DEFVAR => 0,
 
         else => error.InvalidOpcode,
     };

@@ -3,6 +3,7 @@ const core = @import("core.zig");
 const loader = @import("loader.zig");
 const opcodes = @import("opcodes.zig");
 const debug = @import("debug.zig");
+const interface = @import("interface.zig");
 
 const opc = opcodes.VmOpcode;
 
@@ -46,10 +47,11 @@ pub fn main() !void {
         var vm = try core.Vm.init(allocator, &program);
         defer vm.deinit();
 
-        const stdout = std.io.getStdOut().writer();
-        const stdin = std.io.getStdIn().reader();
+        const stdErr = std.io.getStdErr().writer();
+        try vm.registerNative(interface.print);
+        try vm.registerNative(interface.input);
 
-        try vm.run(stdout, stdin);
+        try vm.run(stdErr);
     } else if (std.mem.eql(u8, command, "dump")) {
         var program = loader.readFile(allocator, filename) catch |err| {
             if (err == error.FileNotFound) {

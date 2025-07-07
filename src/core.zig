@@ -3,6 +3,7 @@ const vals = @import("vals.zig");
 const stack = @import("stack.zig");
 const opcodes = @import("opcodes.zig");
 const loader = @import("loader.zig");
+const interface = @import("interface.zig");
 
 const Program = loader.Program;
 
@@ -13,6 +14,9 @@ const Stack = stack.Stack;
 const VmOpcode = opcodes.VmOpcode;
 
 const ValueStack = Stack(*Value);
+
+const VmCtx = interface.VmCtx;
+const NativeFunc = *const fn(VmCtx) anyerror!void;
 
 const expectError = std.testing.expectError;
 const expect = std.testing.expect;
@@ -32,6 +36,8 @@ pub const Vm = struct {
     constants: []const Value = undefined,
 
     allocator: std.mem.Allocator = undefined,
+    natives: std.ArrayList(NativeFunc) = undefined,
+    ctx: VmCtx = undefined,
 
     pub fn init(allocator: std.mem.Allocator, program: *const Program) !Vm {
         var scopes = std.ArrayList(Scope).init(allocator);
@@ -44,6 +50,7 @@ pub const Vm = struct {
             .allocator = allocator,
             .pc = 0,
             .stack = try ValueStack.init(allocator),
+            .natives = std.ArrayList(NativeFunc).init(allocator),
             .callstack = try stack.Stack(usize).init(allocator),
             .scopes = scopes,
             .current_scope = &scopes.items[0],
@@ -66,8 +73,13 @@ pub const Vm = struct {
             self.allocator.destroy(item);
         }
 
+        self.natives.deinit();
         self.stack.deinit();
         self.callstack.deinit();
+    }
+
+    pub fn registerNative(self: *Vm, func: NativeFunc) !void {
+        try self.natives.append(func);
     }
 
     fn fetch(self: *Vm) !u8 {
@@ -207,7 +219,7 @@ pub const Vm = struct {
         return self.makeValue(data);
     }
 
-    pub fn step(self: *Vm, writer: anytype, reader: anytype) !bool {
+    pub fn step(self: *Vm, writer: anytype) !bool {
         const opc = std.meta.intToEnum(VmOpcode, try self.fetch()) catch return error.InvalidOpcode;
         switch (opc) {
             .OP_DUMP => {
@@ -216,11 +228,14 @@ pub const Vm = struct {
                 try x.dump(writer);
             },
 
-            .OP_INPUT => {
-                var line = std.ArrayList(u8).init(self.allocator);
-                try reader.streamUntilDelimiter(line.writer(), '\n', null);
-                const strslice = try line.toOwnedSlice();
-                try self.stack.push(try self.makeValue(.{ .String = strslice }));
+            .OP_NATIVE => {
+                const ctx = VmCtx{
+                    .allocator = self.allocator,
+                    .vm_stack = &self.stack
+                };
+                const func_idx = try self.fetch();
+                if (func_idx >= self.natives.items.len) return error.MalformedCode;
+                try self.natives.items[func_idx](ctx);
             },
 
             .OP_CAST => {
@@ -374,8 +389,8 @@ pub const Vm = struct {
         return true;
     }
 
-    pub fn run(self: *Vm, writer: anytype, reader: anytype) !void {
-        while (try self.step(writer, reader)) {}
+    pub fn run(self: *Vm, writer: anytype) !void {
+        while (try self.step(writer)) {}
     }
 };
 
