@@ -23,9 +23,12 @@ type checker_error =
     | DisallowedYield of Lexer.token_pos
     | UndefinedIdentifier of string * Lexer.token_pos
     | DisallowedReturn of Lexer.token_pos
+    | DisallowedTypes of node_type list * Lexer.token_pos
+    | IncorrectArity of string * Lexer.token_pos
+    | MismatchedFuncArgs of string * node_type list * node_type list * Lexer.token_pos
 
 type envtype =
-    | Subroutine of node_type * node_type list option (* return, param types *)
+    | Subroutine of node_type * node_type list (* return, param types *)
     | Variable of node_type (* type *)
 
 type checker_state = {
@@ -66,11 +69,6 @@ let rec find_var scopes vname =
     | hd :: tl ->
         let res = Hashtbl.find_opt hd vname in
         if Option.is_none res then find_var tl vname else res
-
-let find_func funcs name =
-    match Hashtbl.find_opt funcs name with
-    | Some (Subroutine (ret_type, params)) -> Some (ret_type, params)
-    | _ -> None
 
 let new_scope state = state.scopes <- Hashtbl.create 32 :: state.scopes
 
@@ -183,6 +181,16 @@ let checker_report err =
         print_endline
           ("checker: DisallowedReturn return only allowed in function bodies. \
             Line " ^ string_of_int line)
+    | DisallowedTypes (types, line) ->
+        let types = String.concat " " (List.map string_of_node_type types) in
+        print_endline
+          ("checker: DisallowedTypes types " ^ types ^ " in line " ^ string_of_int line)
+    | IncorrectArity (fname, line) ->
+        print_endline ("checker: IncorrectArity wrong number of arguments in function call for " ^ fname ^ " in line " ^ string_of_int line)
+    | MismatchedFuncArgs (fname, expected, got, line) ->
+        let etypes = String.concat ", " (List.map string_of_node_type expected) in
+        let gtypes = String.concat ", " (List.map string_of_node_type got) in
+        Printf.printf "checker: MismatchedFuncArgs in call to %s. Expected (%s), got (%s) in line %d\n" fname etypes gtypes line
 
 let typeof_node { kind; _ } = kind
 let nodeof_node { node; _ } = node
@@ -241,12 +249,10 @@ let rec annotate_node state node =
         match res with
         | Some (Variable t) -> Ok { kind = t; node }
         | _ -> Error (UndefinedIdentifier (vname, state.current_line)))
-    | Parser.Call (_, params) ->
-        let* _ = iter_result (annotate_node state) params in
-        Ok { kind = T_any; node }
-    | Parser.Statement (_, params, line) ->
+    | Parser.Call _ -> annotate_call state node 
+    | Parser.Statement (_, _, line) ->
         state.current_line <- line;
-        let* _ = iter_result (annotate_node state) params in
+        let* _ = annotate_call state node in
         Ok { kind = T_none; node }
     | Parser.Binary (op, left_node, right_node) ->
         let current_line = state.current_line in
@@ -303,10 +309,7 @@ let rec annotate_node state node =
         else Ok { kind = T_none; node }
     | Parser.For _ -> annotate_for state node
     | Parser.While _ -> annotate_while state node
-    | Parser.FuncDef (_, _, _, body, line) ->
-        state.current_line <- line;
-        let* _ = annotate_block state body in
-        Ok { kind = T_none; node }
+    | Parser.FuncDef _ -> annotate_funcdef state node
     | Parser.Goto (label, line) ->
         state.current_line <- line;
         if List.mem label state.labels then Ok { kind = T_none; node }
@@ -493,6 +496,80 @@ and annotate_block state node =
           state.in_block <- state.in_block - 1;
           del_scope state;
           Ok { kind = !block_type; node }
+    | _ -> assert false
+
+and def_func_params state names types =
+    match (names, types) with
+    | [], [] -> Ok ()
+    | n :: ns, t :: ts ->
+        let* _ = def_var state n t in
+        def_func_params state ns ts 
+    | _ -> failwith "def_func_params: Mismatched param and type lengths" (* Should be impossible *)
+
+and validate_func_types state params ret_type = 
+    let func_ret = node_type_of_string ret_type in
+    let param_types = List.map (fun pair -> snd pair |> node_type_of_string) params in
+    let is_valid_paramt = List.for_all (function | None | Some T_none -> false | _ -> true) param_types in
+    if not is_valid_paramt then Error (DisallowedTypes ([T_none], state.current_line))
+    else 
+        match func_ret with
+        | Some t -> Ok (t, List.map Option.get param_types)
+        | None -> Error (InvalidType (ret_type, state.current_line))
+
+and annotate_funcbody state node vnames vtypes =
+    match node with 
+    | Parser.Block stmts ->
+        new_scope state;
+        let nested_fdef = 
+            List.exists 
+              (function
+                | Parser.FuncDef _ -> true
+                | _ -> false)
+              stmts
+        in
+        if nested_fdef then Error (DisallowedFuncDef state.current_line)
+        else begin
+            let* _ = def_func_params state vnames vtypes in
+            state.in_block <- state.in_block + 1;
+            let* _ = iter_result (annotate_node state) stmts in
+            state.in_block <- state.in_block -1;
+            del_scope state;
+            Ok {kind = T_none; node}
+        end
+    | _ -> assert false
+
+and annotate_funcdef state node =
+    match node with
+    | Parser.FuncDef (name, params, ret_type, body, pos) ->
+        state.current_line <- pos;
+        if Hashtbl.mem state.func_defs name then Error (FuncRedefinition (name, pos))
+        else 
+            let* ftype, param_types = validate_func_types state params ret_type in
+            state.return_type <- Some ftype;
+            let* _ = def_func state name ftype param_types in
+            let* _ = annotate_funcbody state body (List.map fst params) param_types in
+            state.return_type <- None;
+            Ok ({kind = T_none; node})
+    | _ -> assert false
+
+and annotate_call state node =
+    match node with
+    | Parser.Statement (fname, args, _) | Parser.Call (fname, args) ->
+        let func = Hashtbl.find_opt state.func_defs fname in
+        if Option.is_some func then
+            let func = Option.get func in (
+            match func with
+            | Subroutine (ftype, params) ->
+                if (List.compare_lengths args params) <> 0 then Error (IncorrectArity (fname, state.current_line))
+                else
+                    let* args = iter_result_acc (annotate_node state) args [] in
+                    let argtypes = List.map typeof_node args in
+                    if List.equal eql_types params argtypes then
+                        Ok {kind = ftype; node}
+                    else Error (MismatchedFuncArgs (fname, params, argtypes, state.current_line))
+            | _ -> assert false)
+        else
+            Error (UndefinedIdentifier (fname, state.current_line))
     | _ -> assert false
 
 let checker_init ast =
