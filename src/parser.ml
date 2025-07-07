@@ -12,7 +12,10 @@ let print_parserstate { stream; indx } =
     let arr = Array.sub stream indx (Array.length stream - indx) in
     Array.iter Lexer.print_token arr
 
-type parser_error = UnexpectedToken of Lexer.token * string | UnexpectedEOF | UnexpectedNode of string * Lexer.token_pos
+type parser_error =
+    | UnexpectedToken of Lexer.token * string
+    | UnexpectedEOF
+    | UnexpectedNode of string * Lexer.token_pos
 
 let expect st pred fail_string =
     let tok, st' = next st in
@@ -50,7 +53,7 @@ let expect_endstmt st =
       "Expected end of statement."
 
 let expect_beginblock st =
-    expect st 
+    expect st
       (function
         | Lexer.BeginBlock _ -> true
         | _ -> false)
@@ -65,52 +68,52 @@ let expect_endblock st =
 
 let expect_else st =
     expect st
-        (function 
-          | Lexer.Else _ -> true
-          | _ -> false)
-        "Expected else."
+      (function
+        | Lexer.Else _ -> true
+        | _ -> false)
+      "Expected else."
 
 let expect_then st =
     expect st
-        (function
-          | Lexer.Then _ -> true
-          | _ -> false)
-        "Expected then."
+      (function
+        | Lexer.Then _ -> true
+        | _ -> false)
+      "Expected then."
 
 let expect_eql st =
-    expect st 
-        (function
-          | Lexer.Oper ("=", _) -> true
-          | _ -> false)
-        "Expected =."
+    expect st
+      (function
+        | Lexer.Oper ("=", _) -> true
+        | _ -> false)
+      "Expected =."
 
 let expect_comma st =
-    expect st 
-        (function
-          | Lexer.Comma _ -> true
-          | _ -> false)
-        "Expected comma."
+    expect st
+      (function
+        | Lexer.Comma _ -> true
+        | _ -> false)
+      "Expected comma."
 
 let expect_step st =
     expect st
-        (function
-          | Lexer.Step _ -> true
-          | _ -> false)
-        "Expected Step."
+      (function
+        | Lexer.Step _ -> true
+        | _ -> false)
+      "Expected Step."
 
 let expect_colon st =
-    expect st 
-        (function
-          | Lexer.Colon _ -> true 
-          | _ -> false)
-        "Expected Colon."
+    expect st
+      (function
+        | Lexer.Colon _ -> true
+        | _ -> false)
+      "Expected Colon."
 
 let expect_rbracket st =
     expect st
-        (function
-          | Lexer.RBracket _ -> true
-          | _ -> false)
-        "Expected right bracket."
+      (function
+        | Lexer.RBracket _ -> true
+        | _ -> false)
+      "Expected right bracket."
 
 type binop =
     | Add
@@ -126,13 +129,13 @@ type binop =
     | EqLess
     | Not
     | And
-    | Or 
+    | Or
 
 type ast_node =
     | Program of ast_node list
     | Number of int
     | String of string
-    | Bool of bool 
+    | Bool of bool
     | Float of float
     | Unary of binop * ast_node
     | Binary of binop * ast_node * ast_node
@@ -145,7 +148,8 @@ type ast_node =
     | Let of string * ast_node * Lexer.token_pos
     | Assign of ast_node * ast_node * Lexer.token_pos option
     | Label of string * Lexer.token_pos
-    | FuncDef of string * (string * string) list * string * ast_node * Lexer.token_pos
+    | FuncDef of
+        string * (string * string) list * string * ast_node * Lexer.token_pos
     | Return of ast_node option * Lexer.token_pos
     | While of ast_node * ast_node * Lexer.token_pos
     | For of ast_node * ast_node * ast_node * ast_node * Lexer.token_pos
@@ -183,11 +187,12 @@ let binop_of_str = function
     | "<=" -> Some EqLess
     | "!" -> Some Not
     | "and" -> Some And
-    | "or" -> Some Or (* Technically not needed here, but for completeness they are *)
+    | "or" ->
+        Some Or (* Technically not needed here, but for completeness they are *)
     | _ -> None
 
 let rec string_of_ast = function
-    | Program b -> 
+    | Program b ->
         let body = String.concat "\n" (List.map string_of_ast b) in
         "(Program " ^ body ^ ")"
     | Number x -> string_of_int x
@@ -207,45 +212,50 @@ let rec string_of_ast = function
         let param_strs = List.map string_of_ast params in
         let body = String.concat " " (call :: param_strs) in
         "(" ^ body ^ ")"
-    | Index (var, idx) ->
-        string_of_ast var ^ "[" ^ string_of_ast idx ^ "]"
-    | If (cond, texpr, fexpr, _) -> 
-        "(if " ^ string_of_ast cond ^ " " ^ string_of_ast texpr ^ " " ^ (
-            match fexpr with
-            | Some node -> string_of_ast node
-            | None -> ""
-        ) ^ ")"
-    | Let (left, right, _) -> 
-        "(let " ^ left ^ " " ^ string_of_ast right ^ ")"
+    | Index (var, idx) -> string_of_ast var ^ "[" ^ string_of_ast idx ^ "]"
+    | If (cond, texpr, fexpr, _) ->
+        "(if " ^ string_of_ast cond ^ " " ^ string_of_ast texpr ^ " "
+        ^ (match fexpr with
+          | Some node -> string_of_ast node
+          | None -> "")
+        ^ ")"
+    | Let (left, right, _) -> "(let " ^ left ^ " " ^ string_of_ast right ^ ")"
     | Assign (left, right, _) ->
         "(= " ^ string_of_ast left ^ " " ^ string_of_ast right ^ ")"
-    | Label (name, _) -> 
-        ":" ^ name
+    | Label (name, _) -> ":" ^ name
     | FuncDef (name, rawparams, typing, body, _) ->
-        let params = (name, typing) :: rawparams
-        |> List.concat_map (fun (x, y) -> [x; y])
-        |> String.concat " " in
+        let params =
+            (name, typing) :: rawparams
+            |> List.concat_map (fun (x, y) -> [ x; y ])
+            |> String.concat " "
+        in
         "(fdef (" ^ params ^ ") " ^ string_of_ast body ^ ")"
-    | Return (Some x, _) ->
-        "(return " ^ string_of_ast x ^ ")"
-    | Return (None, _) ->
-        "(return)"
+    | Return (Some x, _) -> "(return " ^ string_of_ast x ^ ")"
+    | Return (None, _) -> "(return)"
     | While (cond, body, _) ->
         "(while " ^ string_of_ast cond ^ " " ^ string_of_ast body ^ ")"
     | For (base, dest, step, body, _) ->
-        let cont = List.map string_of_ast [base; dest; step; body] |> String.concat " " in
+        let cont =
+            List.map string_of_ast [ base; dest; step; body ]
+            |> String.concat " "
+        in
         "(for " ^ cont ^ ")"
     | String s -> "\"" ^ s ^ "\""
     | Bool true -> "true"
     | Bool false -> "false"
     | Goto (label, _) -> "(goto :" ^ label ^ ")"
-    | Yield (body, _) -> "(yield " ^ if Option.is_some body then string_of_ast (Option.get body) else "" ^ ")"
-    | Dim (name, lens, annotation, _) -> 
-        let lenstring = ( 
+    | Yield (body, _) ->
+        "(yield "
+        ^
+        if Option.is_some body then string_of_ast (Option.get body)
+        else "" ^ ")"
+    | Dim (name, lens, annotation, _) ->
+        let lenstring =
             match lens with
             | x :: [] -> string_of_ast x
             | _ :: _ -> String.concat ", " (List.map string_of_ast lens)
-            | _ -> assert false) in
+            | _ -> assert false
+        in
         "(dim " ^ name ^ ": " ^ annotation ^ " " ^ lenstring ^ ")"
 
 let parser_init toks = { stream = Array.of_list toks; indx = 0 }
@@ -267,7 +277,7 @@ let rec parse_literal st =
         let* node, st2' = parse_expr st' in
         let* _, st3' = expect_rparen st2' in
         parse_postfix node st3'
-    | Some (Lexer.BeginBlock _) -> 
+    | Some (Lexer.BeginBlock _) ->
         let* node, st2' = parse_block st' in
         parse_postfix node st2'
     | Some (Lexer.Ident (x, _)) -> parse_postfix (Var x) st'
@@ -279,7 +289,7 @@ let rec parse_literal st =
 
 and parse_expr st = parse_assignment st
 
-and parse_postfix node st = 
+and parse_postfix node st =
     match peek st with
     | Some (Lexer.LBracket _) ->
         let _, st' = next st in
@@ -288,7 +298,13 @@ and parse_postfix node st =
         parse_postfix (Index (node, idx)) st3'
     | Some (Lexer.LParen _) ->
         let* args, st' = parse_param_list st in
-        parse_postfix (Call ((match node with Var x -> x | _ -> assert false), args)) st'
+        parse_postfix
+          (Call
+             ( (match node with
+               | Var x -> x
+               | _ -> assert false),
+               args ))
+          st'
     | _ -> Ok (node, st)
 
 and parse_block st =
@@ -388,14 +404,17 @@ and parse_if_expr st =
 and parse_assignment st =
     let* left, st' = parse_if_expr st in
     match peek st' with
-    | Some (Lexer.Oper ("=", _)) -> ( 
+    | Some (Lexer.Oper ("=", _)) -> (
         match left with
         | Var _ | Index _ ->
             let _, st2' = next st' in
             let* rhs, st3' = parse_assignment st2' in
             Ok (Assign (left, rhs, None), st3')
-        | _ -> 
-            Error (UnexpectedToken ((Option.get (peek st')), "Left side of assignment must be variable or index")))
+        | _ ->
+            Error
+              (UnexpectedToken
+                 ( Option.get (peek st'),
+                   "Left side of assignment must be variable or index" )))
     | _ -> Ok (left, st')
 
 and parse_if_stmt st =
@@ -405,7 +424,7 @@ and parse_if_stmt st =
     match then_tok with
     | Lexer.Then pos -> (
         match peek st3' with
-        | Some (Lexer.Else _) -> 
+        | Some (Lexer.Else _) ->
             let _, st4' = next st3' in
             let* fexpr, st5' = parse_expr st4' in
             Ok (If (cond, texpr, Some fexpr, Some pos), st5')
@@ -418,8 +437,7 @@ and parse_param_list_loop st acc =
     | Some (Lexer.Comma _) ->
         let _, st2' = next st' in
         parse_param_list_loop st2' (expr :: acc)
-    | _ -> 
-        Ok (expr :: acc |> List.rev, st')
+    | _ -> Ok (expr :: acc |> List.rev, st')
 
 and parse_param_list st =
     let* _, st' = expect_lparen st in
@@ -435,7 +453,7 @@ and parse_param_list st =
 and parse_let_stmt st =
     let* left, st' = expect_ident st in
     match left with
-    | Lexer.Ident (ident_name, pos) -> 
+    | Lexer.Ident (ident_name, pos) ->
         let* _, st2' = expect_eql st' in
         let* right, st3' = parse_expr st2' in
         Ok (Let (ident_name, right, pos), st3')
@@ -443,38 +461,39 @@ and parse_let_stmt st =
 
 and parse_sub_param_loop st acc =
     match peek st with
-    | Some (Lexer.Ident (name, _)) ->
+    | Some (Lexer.Ident (name, _)) -> (
         let* _, st' = expect_ident st in
         let* _, st2' = expect_colon st' in
-        let* type_ident, st3' = expect_ident st2' in(
+        let* type_ident, st3' = expect_ident st2' in
         match type_ident with
-        | Lexer.Ident (typing, _) ->
-            (match peek st3' with
-                | Some (Lexer.Comma _) ->
-                    let _, st4' = next st3' in
-                    parse_sub_param_loop st4' ((name, typing) :: acc)
-                | Some (Lexer.RParen _) -> Ok (List.rev ((name, typing) :: acc), st3')
-                | None -> Error UnexpectedEOF
-                | Some t -> Error (UnexpectedToken (t, "Expected either RParen or Comma")))
+        | Lexer.Ident (typing, _) -> (
+            match peek st3' with
+            | Some (Lexer.Comma _) ->
+                let _, st4' = next st3' in
+                parse_sub_param_loop st4' ((name, typing) :: acc)
+            | Some (Lexer.RParen _) ->
+                Ok (List.rev ((name, typing) :: acc), st3')
+            | None -> Error UnexpectedEOF
+            | Some t ->
+                Error (UnexpectedToken (t, "Expected either RParen or Comma")))
         | _ -> assert false)
     | _ -> Ok (List.rev acc, st)
 
-
 and parse_sub_param st =
     let* _, st' = expect_lparen st in
-    let* (ident_list, st2') = parse_sub_param_loop st' [] in
+    let* ident_list, st2' = parse_sub_param_loop st' [] in
     let* _, st3' = expect_rparen st2' in
     Ok (ident_list, st3')
 
 and parse_sub st =
     let* ident, st' = expect_ident st in
     match ident with
-    | Lexer.Ident (name, pos) -> 
+    | Lexer.Ident (name, pos) -> (
         let* param_list, st2' = parse_sub_param st' in
         let* _, st3' = expect_colon st2' in
-        let* typ, st4' = expect_ident st3' in (
+        let* typ, st4' = expect_ident st3' in
         match typ with
-        | Lexer.Ident (typname, _) -> 
+        | Lexer.Ident (typname, _) ->
             let* _, st5' = expect_beginblock st4' in
             let* body, st6' = parse_block st5' in
             Ok (FuncDef (name, param_list, typname, body, pos), st6')
@@ -501,36 +520,36 @@ and parse_for st pos =
     match base with
     | Var _ -> parse_for_pred st' base pos
     | Assign (_, _, _) -> parse_for_pred st' base pos
-    | _ -> Error (UnexpectedNode ("Expected assignment or var in for loop", pos))
+    | _ ->
+        Error (UnexpectedNode ("Expected assignment or var in for loop", pos))
 
 and parse_goto st pos =
     let* _, st' = expect_colon st in
     let* ident, st2' = expect_ident st' in
     match ident with
-        | Lexer.Ident (label, _) -> Ok (Goto (label, pos), st2')
-        | _ -> assert false
+    | Lexer.Ident (label, _) -> Ok (Goto (label, pos), st2')
+    | _ -> assert false
 
-and parse_yield_stmt st pos = 
+and parse_yield_stmt st pos =
     match peek st with
-    | Some Lexer.EndStmt _ -> 
+    | Some (Lexer.EndStmt _) ->
         let _, st' = next st in
         Ok (Yield (None, pos), st')
-    | _ -> 
+    | _ ->
         let* body, st' = parse_expr st in
         Ok (Yield (Some body, pos), st')
 
 and parse_dim_stmt st pos =
     let* ident, st' = expect_ident st in
     match ident with
-    | Lexer.Ident (name, _) -> 
+    | Lexer.Ident (name, _) -> (
         let* _, st2' = expect_lparen st' in
         let* size, st3' = parse_param_list_loop st2' [] in
         let* _, st4' = expect_rparen st3' in
         let* _, st5' = expect_colon st4' in
-        let* ident, st6' = expect_ident st5' in 
-        (match ident with
-        | Lexer.Ident (tname, _) -> 
-            Ok (Dim (name, size, tname, pos), st6')
+        let* ident, st6' = expect_ident st5' in
+        match ident with
+        | Lexer.Ident (tname, _) -> Ok (Dim (name, size, tname, pos), st6')
         | _ -> assert false)
     | _ -> assert false
 
@@ -540,11 +559,11 @@ and parse_stmt st =
     | Some (Lexer.Ident (name, pos)) -> (
         let t = peek st' in
         match t with
-        | Some (Lexer.Oper ("=", _)) -> 
+        | Some (Lexer.Oper ("=", _)) ->
             let _, st2' = next st' in
             let* right_side, st3' = parse_expr st2' in
             Ok (Assign (Var name, right_side, Some pos), st3')
-        | Some (Lexer.LParen _) -> 
+        | Some (Lexer.LParen _) ->
             let* param_list, st2' = parse_param_list st' in
             let* _, st3' = expect_endstmt st2' in
             Ok (Statement (name, param_list, pos), st3')
@@ -557,7 +576,11 @@ and parse_stmt st =
             let* rhs, st4' = parse_expr st3' in
             let* _, st5' = expect_endstmt st4' in
             Ok (Assign (lhs, rhs, Some pos), st5')
-        | _ -> Error (UnexpectedToken (Option.get t, "Expected either assignment, label, or function call")))
+        | _ ->
+            Error
+              (UnexpectedToken
+                 ( Option.get t,
+                   "Expected either assignment, label, or function call" )))
     | Some (Lexer.If _) -> parse_if_stmt st'
     | Some (Lexer.Let _) -> parse_let_stmt st'
     | Some (Lexer.Sub _) -> parse_sub st'
@@ -601,4 +624,6 @@ let parser_report = function
           ("parser: UnexpectedToken "
           ^ Lexer.errorstring_of_token x
           ^ ". " ^ fail_string)
-    | UnexpectedNode (msg, pos) -> print_endline ("parser: UnexpectedNode " ^ msg ^ " in line " ^ string_of_int pos)
+    | UnexpectedNode (msg, pos) ->
+        print_endline
+          ("parser: UnexpectedNode " ^ msg ^ " in line " ^ string_of_int pos)

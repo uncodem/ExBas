@@ -40,5 +40,3 @@ type exbvm_opcode =
     | OP_ret
 
 val int_of_exbvm_op : exbvm_opcode -> int
-
-

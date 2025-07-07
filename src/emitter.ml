@@ -1,4 +1,3 @@
-
 type emit_me =
     | RawOp of Opcodes.exbvm_opcode
     | RawVal of int
@@ -13,16 +12,13 @@ type const_value =
     | FloatConst of float
 
 type emitter_state = {
-    mutable buffer: emit_me list;
-    mutable const_counter: int;
-    const_pool: (const_value, int) Hashtbl.t;
-}
+    mutable buffer : emit_me list;
+    mutable const_counter : int;
+    const_pool : (const_value, int) Hashtbl.t;
+  }
 
-let emitter_init () = {
-    buffer = [];
-    const_counter = 0;
-    const_pool = Hashtbl.create 32
-}
+let emitter_init () =
+    { buffer = []; const_counter = 0; const_pool = Hashtbl.create 32 }
 
 let constant_of_node node =
     match node with
@@ -32,15 +28,14 @@ let constant_of_node node =
     | Parser.Float f -> FloatConst f
     | _ -> assert false
 
-let emit_val state v =
-    state.buffer <- v :: state.buffer
+let emit_val state v = state.buffer <- v :: state.buffer
 
 let rec emit_node state node =
     match node with
-    | Parser.Number _ | Parser.String _ | Parser.Bool _ | Parser.Float _ -> 
+    | Parser.Number _ | Parser.String _ | Parser.Bool _ | Parser.Float _ ->
         let indx = emit_const state node in
         emit_val state (RawVal indx);
-        emit_val state (RawOp Opcodes.OP_const);
+        emit_val state (RawOp Opcodes.OP_const)
     | _ -> ()
 
 and emit_const state v =
@@ -52,4 +47,3 @@ and emit_const state v =
         Hashtbl.add state.const_pool k indx;
         state.const_counter <- indx + 1;
         indx
-

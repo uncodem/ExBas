@@ -70,7 +70,7 @@ let is_special_char = function
     | '(' | ')' | ',' | ':' -> true
     | _ -> false
 
-let token_of_special_char {line_number; _} = function
+let token_of_special_char { line_number; _ } = function
     | '(' -> Some (LParen line_number)
     | ')' -> Some (RParen line_number)
     | ',' -> Some (Comma line_number)
@@ -105,7 +105,7 @@ let convert_token t =
 let print_token = function
     | Ident (s, _) -> print_endline ("Ident(" ^ s ^ ")")
     | Number (x, _) -> print_endline ("Number(" ^ string_of_int x ^ ")")
-    | Float (f, _) -> print_endline ("Float("^ string_of_float f ^ ")")
+    | Float (f, _) -> print_endline ("Float(" ^ string_of_float f ^ ")")
     | Oper (x, _) -> print_endline ("Oper(" ^ x ^ ")")
     | Illegal (s, _) -> print_endline ("Illegal(" ^ s ^ ")")
     | LParen _ -> print_endline "LParen"
@@ -184,7 +184,7 @@ let rec lex_none ({ position; line_number; _ } as state) =
         |> lexer_advance |> lex_none
     | Some ';' -> add_token_advance state (EndStmt line_number) |> lex_none
     | Some '\'' -> lex_comment state
-    | Some '"' -> lex_string (lexer_advance state) (position+1) 0
+    | Some '"' -> lex_string (lexer_advance state) (position + 1) 0
     | Some c when c = '[' || c = ']' ->
         add_token_advance state
           (if c = '[' then LBracket line_number else RBracket line_number)
@@ -202,9 +202,15 @@ let rec lex_none ({ position; line_number; _ } as state) =
 
 and lex_string state start len =
     match peek state with
-    | Some '"' -> lex_none (add_token_advance state (String (String.sub state.code start len, state.line_number)))
-    | None | Some '\n' -> lex_none (add_token_advance state (Illegal ("Unterminated string", state.line_number)))
-    | _ -> lex_string (lexer_advance state) start (len+1) 
+    | Some '"' ->
+        lex_none
+          (add_token_advance state
+             (String (String.sub state.code start len, state.line_number)))
+    | None | Some '\n' ->
+        lex_none
+          (add_token_advance state
+             (Illegal ("Unterminated string", state.line_number)))
+    | _ -> lex_string (lexer_advance state) start (len + 1)
 
 and lex_comment state =
     match peek state with
@@ -229,8 +235,7 @@ and lex_ident state start len =
         lex_ident (lexer_advance state) start (len + 1)
     | _ ->
         let tok = Ident (String.sub state.code start len, state.line_number) in
-        lex_none
-          (add_token state (convert_token tok))
+        lex_none (add_token state (convert_token tok))
 
 and lex_number state acc =
     match peek state with
@@ -238,14 +243,15 @@ and lex_number state acc =
         let digit = Char.code c - Char.code '0' in
         let new_acc = (acc * 10) + digit in
         lex_number (lexer_advance state) new_acc
-    | Some '.' ->
+    | Some '.' -> (
         let check = lexer_advance state in
-        (match peek check with
-        | Some c when is_digit c -> lex_float (lexer_advance state) (string_of_int acc ^ ".")
+        match peek check with
+        | Some c when is_digit c ->
+            lex_float (lexer_advance state) (string_of_int acc ^ ".")
         | _ -> lex_illegal check check.position 1 check.line_number)
     | _ -> lex_none (add_token state (Number (acc, state.line_number)))
 
-and lex_float state acc = 
+and lex_float state acc =
     match peek state with
     | Some c when is_digit c ->
         let new_acc = acc ^ String.make 1 c in
@@ -253,7 +259,10 @@ and lex_float state acc =
     | _ -> (
         match float_of_string_opt acc with
         | Some f -> lex_none (add_token state (Float (f, state.line_number)))
-        | None -> lex_none (add_token state (Illegal ("Invalid float: " ^ acc, state.line_number))))
+        | None ->
+            lex_none
+              (add_token state
+                 (Illegal ("Invalid float: " ^ acc, state.line_number))))
 
 and lex_oper state acc =
     let next = peek state in
@@ -274,4 +283,3 @@ and lex_oper state acc =
 
 let lexer_init code =
     lex_none { code; position = 0; tokens = []; line_number = 1 } |> List.rev
-
