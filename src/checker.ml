@@ -572,6 +572,26 @@ and annotate_call state node =
             Error (UndefinedIdentifier (fname, state.current_line))
     | _ -> assert false
 
+let builtins = [
+    ("str2int", T_int, [T_string]);
+    ("str2float", T_float, [T_string]);
+
+    ("int2str", T_string, [T_int]);
+    ("int2float", T_float, [T_int]);
+    
+    ("float2str", T_string, [T_float]);
+    ("float2int", T_int, [T_float]);
+
+    ("any2int", T_int, [T_any]);
+    ("any2float", T_float, [T_any]);
+    ("any2str", T_string, [T_any]);
+
+    ("size", T_any, [T_int]);
+
+    ("print", T_none, [T_any]);
+    ("input", T_string, []);
+] 
+
 let checker_init ast =
     let* collected = collect_labels ast [] in
     List.iter print_endline collected;
@@ -585,4 +605,6 @@ let checker_init ast =
           return_type = None;
         }
     in
+    let aux (name, rtype, params) = def_func state name rtype params in
+    let* _ = iter_result aux builtins in    
     annotate_node state ast
