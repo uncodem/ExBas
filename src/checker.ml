@@ -529,10 +529,9 @@ and annotate_funcbody state node vnames vtypes =
         in
         if nested_fdef then Error (DisallowedFuncDef state.current_line)
         else begin
+            (* We don't update in_body here to prevent yield in the top-level function body *)
             let* _ = def_func_params state vnames vtypes in
-            state.in_block <- state.in_block + 1;
             let* _ = iter_result (annotate_node state) stmts in
-            state.in_block <- state.in_block -1;
             del_scope state;
             Ok {kind = T_none; node}
         end
