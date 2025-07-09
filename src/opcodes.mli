@@ -36,7 +36,7 @@ type exbvm_opcode =
     | OP_tjmp
     | OP_tcall
     | OP_dump
-    | OP_input
+    | OP_native
     | OP_ret
 
 val int_of_exbvm_op : exbvm_opcode -> int

@@ -36,7 +36,7 @@ type exbvm_opcode =
     | OP_tjmp
     | OP_tcall
     | OP_dump
-    | OP_input
+    | OP_native
     | OP_ret
 
 let int_of_exbvm_op op = function
@@ -77,5 +77,5 @@ let int_of_exbvm_op op = function
     | OP_tjmp -> 34
     | OP_tcall -> 35
     | OP_dump -> 36
-    | OP_input -> 37
+    | OP_native -> 37
     | OP_ret -> 38
