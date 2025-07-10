@@ -17,6 +17,7 @@ pub const VmOpcode = enum(u8) {
     OP_DROP,
 
     OP_CREATEARRAY,
+    OP_CREATEARRAY_ND,
     OP_INITARRAY,
     OP_CGET,
     OP_RGET,

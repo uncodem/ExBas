@@ -196,6 +196,19 @@ pub const Vm = struct {
         if (x.release()) self.allocator.destroy(x);
     }
 
+    fn buildArrays(self: *Vm, sizes: []const u16) !*Value {
+        if (sizes.len == 0) return error.MalformedCode;
+
+        const arrsize: u16 = sizes[0];
+        const ret = try self.reserveArray(arrsize);
+        if (sizes.len == 1) return ret;
+
+        for (ret) |*x| {
+            x.* = try self.buildArrays(sizes[1..]);
+        }
+        return ret;
+    }
+
     // This function would not make copies of the data it gets.
     // It would assume that any []Value or []u8 are already heap allocated and use the VM's allocator.
     fn makeValue(self: *Vm, data: vals.ValueData) !*Value {
@@ -284,6 +297,14 @@ pub const Vm = struct {
             },
 
             .OP_CREATEARRAY => try self.stack.push(try self.reserveArray(try self.fetch16(u16))),
+            .OP_CREATEARRAY_ND => {
+                const depth: u16 = try self.fetch16(u16);
+                const sizes = try self.allocator.alloc(u16, depth);
+                for (sizes) |*size| {
+                    size.* = try self.fetch16(u16);
+                }
+                try self.stack.push(try self.buildArrays(sizes));
+            },
             .OP_INITARRAY => {
                 const arrsize: u16 = try self.fetch16(u16);
                 const arrvalue = try self.reserveArray(arrsize);
