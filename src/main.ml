@@ -23,8 +23,8 @@ let () =
     | Error e -> Parser.parser_report e *)
 
 let () =
-    let tree = Parser.Binary (Parser.Add, Parser.Number 12, Parser.Number 13) in
+    let tree = Parser.Binary (Parser.Add, Parser.Unary (Parser.Sub, Parser.Number 12), Parser.Number 13) in
     let e_state = Emitter.emitter_init () in
     Emitter.emit_node e_state tree;
-    List.iter (fun x -> print_endline (Emitter.show_emit_me x)) e_state.buffer 
+    List.iter (fun x -> print_endline (Emitter.show_emit_me x)) (List.rev e_state.buffer)
 

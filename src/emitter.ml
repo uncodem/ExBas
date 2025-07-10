@@ -84,19 +84,19 @@ let rec emit_node state node =
         emit_val state (RawOp Opcodes.OP_const);
         emit_val state (RawVal indx);
     | Parser.Binary (op, left, right) -> 
-        emit_val state (RawOp (opcode_of_binop op));
         emit_node state left;
-        emit_node state right
+        emit_node state right;
+        emit_val state (RawOp (opcode_of_binop op))
     | Parser.Unary (Parser.Not, right) ->
         emit_val state (RawOp (opcode_of_binop Parser.Not));
         emit_node state right
     | Parser.Unary (Parser.Sub, right) -> 
-        emit_val state (RawOp Opcodes.OP_neg);
-        emit_node state right
+        emit_node state right;
+        emit_val state (RawOp Opcodes.OP_neg)
     | Parser.Let (vname, right, _) ->
         def_var state vname;
-        emit_val state (RawOp Opcodes.OP_defvar);
-        emit_node state right
+        emit_node state right;
+        emit_val state (RawOp Opcodes.OP_defvar)
 
     | _ -> failwith "Unhandled node!"
 
