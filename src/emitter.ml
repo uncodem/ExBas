@@ -29,7 +29,7 @@ let rec find_var scopes vname count =
     | hd :: tl -> 
         let res = Hashtbl.find_opt hd vname in
         if Option.is_none res then find_var tl vname (count+1) 
-        else Some (res, count)
+        else Some (Option.get res, count)
 
 let def_var state vname = 
     let scope = List.hd state.vars in
@@ -99,6 +99,16 @@ let rec emit_node state node =
         emit_val state (RawOp Opcodes.OP_defvar)
 
     | _ -> failwith "Unhandled node!"
+
+and emit_assign state = function
+    | Parser.Assign (Parser.Var vname, right, _) ->
+        let (pos, count) = Option.get ( find_var state.vars vname 0 ) in
+        emit_node state right;
+        emit_val state (RawOp Opcodes.OP_popvar);
+        emit_val state (RawVal count);
+        emit_val state (RawVal pos)
+    | _ -> assert false
+
 
 and get_const state v =
     let k = constant_of_node v in
