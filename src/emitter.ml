@@ -15,10 +15,36 @@ type emitter_state = {
     mutable buffer : emit_me list;
     mutable const_counter : int;
     const_pool : (const_value, int) Hashtbl.t;
-  }
+
+    mutable current_scope : int;
+    mutable var_counter : int list;
+    mutable vars : (string, int) Hashtbl.t list;
+}
+
+let rec find_var scopes vname count = 
+    match scopes with
+    | [] -> None
+    | hd :: tl -> 
+        let res = Hashtbl.find_opt hd vname in
+        if Option.is_none res then find_var tl vname (count+1) 
+        else Some (res, count)
+
+let def_var state vname = 
+    let scope = List.hd state.vars in
+    let count = List.hd state.var_counter in
+    Hashtbl.add scope vname count;
+    state.var_counter <- (count + 1) :: List.tl state.var_counter
+
+let new_scope state = 
+    state.var_counter <- 0 :: state.var_counter;
+    state.vars <- Hashtbl.create 32 :: state.vars
+
+let del_scope state = 
+    state.var_counter <- List.tl state.var_counter;
+    state.vars <- List.tl state.vars
 
 let emitter_init () =
-    { buffer = []; const_counter = 0; const_pool = Hashtbl.create 32 }
+    { buffer = []; const_counter = 0; const_pool = Hashtbl.create 32; current_scope = 0; vars = [Hashtbl.create 32]; var_counter = [0] }
 
 let constant_of_node = function
     | Parser.Number x -> IntConst x
