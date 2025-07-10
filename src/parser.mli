@@ -20,6 +20,7 @@ type binop =
     | Not
     | And
     | Or
+    | Mod
 
 type ast_node =
     | Program of ast_node list

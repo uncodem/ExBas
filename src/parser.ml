@@ -130,6 +130,7 @@ type binop =
     | Not
     | And
     | Or
+    | Mod
 
 type ast_node =
     | Program of ast_node list
@@ -172,6 +173,7 @@ let string_of_binop = function
     | And -> "and"
     | Or -> "or"
     | Not -> "!" (* Not necessarily binop, but here anyways *)
+    | Mod -> "%"
 
 let binop_of_str = function
     | "+" -> Some Add
@@ -189,6 +191,7 @@ let binop_of_str = function
     | "and" -> Some And
     | "or" ->
         Some Or (* Technically not needed here, but for completeness they are *)
+    | "%" -> Some Mod
     | _ -> None
 
 let rec string_of_ast = function
@@ -332,7 +335,7 @@ and parse_factor_loop left st =
     match peek st with
     | Some (Lexer.Oper (c, _)) -> (
         match binop_of_str c with
-        | Some ((Mul | Div) as op) ->
+        | Some ((Mul | Div | Mod) as op) ->
             let _, st' = next st in
             let* right, st2' = parse_unary st' in
             parse_factor_loop (Binary (op, left, right)) st2'

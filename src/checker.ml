@@ -217,7 +217,7 @@ let rec iter_result_acc f lst acc =
         iter_result_acc f tl (r :: acc)
 
 let is_arithmetic_op = function
-    | Parser.Add | Parser.Sub | Parser.Mul | Parser.Div -> true
+    | Parser.Add | Parser.Sub | Parser.Mul | Parser.Div | Parser.Mod -> true
     | _ -> false
 
 let is_logic_op = function
