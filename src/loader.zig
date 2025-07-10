@@ -163,8 +163,8 @@ test "src/loader.zig readFile" {
 
     const file_data = [_]u8{
         0xef, 0xbe, 0xad, 0xde,
-        0x03, 0x00, 0x00, 0x00,
-        @intFromEnum(opc.OP_INPUT),
+        0x04, 0x00, 0x00, 0x00,
+        @intFromEnum(opc.OP_NATIVE), 1,
         @intFromEnum(opc.OP_DUMP),
         @intFromEnum(opc.OP_RET),
         1, 0x41, 0x42, 0x43, 0x00,
@@ -179,7 +179,7 @@ test "src/loader.zig readFile" {
     defer program.deinit();
     try std.fs.cwd().deleteFile("_readfile_test.bin");
 
-    for (file_data[8..11], program.code) |x, y| {
+    for (file_data[8..12], program.code) |x, y| {
         try expect(x == y);
     }
 
