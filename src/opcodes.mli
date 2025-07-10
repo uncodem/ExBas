@@ -39,5 +39,6 @@ type exbvm_opcode =
     | OP_dump
     | OP_native
     | OP_ret
+[@@deriving show]
 
 val int_of_exbvm_op : exbvm_opcode -> int

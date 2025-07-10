@@ -1,4 +1,4 @@
-let read_lines fname =
+(* let read_lines fname =
     let ic = open_in fname in
     let rec aux acc =
         match input_line ic with
@@ -20,4 +20,11 @@ let () =
         match Checker.checker_init a with
         | Ok _ -> print_endline "No error"
         | Error e -> Checker.checker_report e)
-    | Error e -> Parser.parser_report e
+    | Error e -> Parser.parser_report e *)
+
+let () =
+    let tree = Parser.Binary (Parser.Add, Parser.Number 12, Parser.Number 13) in
+    let e_state = Emitter.emitter_init () in
+    Emitter.emit_node e_state tree;
+    List.iter (fun x -> print_endline (Emitter.show_emit_me x)) e_state.buffer 
+

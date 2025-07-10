@@ -4,12 +4,14 @@ type emit_me =
     | LabelDef of string
     | LabelRef of string
     | NoEmit
+[@@deriving show]
 
 type const_value =
     | StrConst of string
     | IntConst of int
     | BoolConst of bool
     | FloatConst of float
+[@@deriving show]
 
 type emitter_state = {
     mutable buffer : emit_me list;
@@ -40,8 +42,11 @@ let new_scope state =
     state.vars <- Hashtbl.create 32 :: state.vars
 
 let del_scope state = 
-    state.var_counter <- List.tl state.var_counter;
-    state.vars <- List.tl state.vars
+    match state.vars, state.var_counter with
+    | [], [] | _, [] | [], _ -> failwith "Attempted to delete empty scope stack/vcount stack"
+    | _ :: vtl, _ :: vctl ->
+        state.var_counter <- vctl;
+        state.vars <- vtl
 
 let emitter_init () =
     { buffer = []; const_counter = 0; const_pool = Hashtbl.create 32; current_scope = 0; vars = [Hashtbl.create 32]; var_counter = [0] }
@@ -88,7 +93,12 @@ let rec emit_node state node =
     | Parser.Unary (Parser.Sub, right) -> 
         emit_val state (RawOp Opcodes.OP_neg);
         emit_node state right
-    | _ -> ()
+    | Parser.Let (vname, right, _) ->
+        def_var state vname;
+        emit_val state (RawOp Opcodes.OP_defvar);
+        emit_node state right
+
+    | _ -> failwith "Unhandled node!"
 
 and get_const state v =
     let k = constant_of_node v in
