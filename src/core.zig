@@ -203,8 +203,10 @@ pub const Vm = struct {
         const ret = try self.reserveArray(arrsize);
         if (sizes.len == 1) return ret;
 
-        for (ret) |*x| {
-            x.* = try self.buildArrays(sizes[1..]);
+        for (ret.data.Array) |*x| {
+            const elem = try self.buildArrays(sizes[1..]);
+            defer self.release(elem);
+            x.* = try elem.copy();
         }
         return ret;
     }
