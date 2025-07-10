@@ -22,6 +22,7 @@ type exbvm_opcode =
     | OP_div
     | OP_mul
     | OP_mod
+    | OP_neg
     | OP_and
     | OP_or
     | OP_not
@@ -39,7 +40,7 @@ type exbvm_opcode =
     | OP_native
     | OP_ret
 
-let int_of_exbvm_op op = function
+let int_of_exbvm_op = function
     | OP_const -> 0
     | OP_copy -> 1
     | OP_cast -> 2
@@ -63,19 +64,20 @@ let int_of_exbvm_op op = function
     | OP_div -> 20
     | OP_mul -> 21
     | OP_mod -> 22
-    | OP_and -> 23
-    | OP_or -> 24
-    | OP_not -> 25
-    | OP_eql -> 26
-    | OP_neql -> 27
-    | OP_more -> 28
-    | OP_less -> 29
-    | OP_eqmore -> 30
-    | OP_eqless -> 31
-    | OP_jmp -> 32
-    | OP_call -> 33
-    | OP_tjmp -> 34
-    | OP_tcall -> 35
-    | OP_dump -> 36
-    | OP_native -> 37
-    | OP_ret -> 38
+    | OP_neg -> 23
+    | OP_and -> 24
+    | OP_or -> 25
+    | OP_not -> 26
+    | OP_eql -> 27
+    | OP_neql -> 28
+    | OP_more -> 29
+    | OP_less -> 30
+    | OP_eqmore -> 31
+    | OP_eqless -> 32
+    | OP_jmp -> 33
+    | OP_call -> 34
+    | OP_tjmp -> 35
+    | OP_tcall -> 36
+    | OP_dump -> 37
+    | OP_native -> 38
+    | OP_ret -> 39

@@ -22,6 +22,7 @@ type exbvm_opcode =
     | OP_div
     | OP_mul
     | OP_mod
+    | OP_neg
     | OP_and
     | OP_or
     | OP_not
