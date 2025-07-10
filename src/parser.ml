@@ -539,12 +539,24 @@ and parse_yield_stmt st pos =
         let* body, st' = parse_expr st in
         Ok (Yield (Some body, pos), st')
 
+and parse_dim_sizes st acc =
+    let* size, st' = expect st (function Lexer.Number _ -> true | _ -> false) "Expected constant number as size in dim." in 
+    match size with
+    | Lexer.Number (x, _) -> 
+        let expr = Number x in (
+        match peek st' with
+        | Some (Lexer.Comma _) ->
+            let _, st2' = next st' in
+            parse_dim_sizes st2' (expr :: acc)
+        | _ -> Ok (expr :: acc |> List.rev, st'))
+    | _ -> assert false
+    
 and parse_dim_stmt st pos =
     let* ident, st' = expect_ident st in
     match ident with
     | Lexer.Ident (name, _) -> (
         let* _, st2' = expect_lparen st' in
-        let* size, st3' = parse_param_list_loop st2' [] in
+        let* size, st3' = parse_dim_sizes st2' [] in
         let* _, st4' = expect_rparen st3' in
         let* _, st5' = expect_colon st4' in
         let* ident, st6' = expect_ident st5' in
