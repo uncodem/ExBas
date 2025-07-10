@@ -356,6 +356,18 @@ pub const Vm = struct {
                 try self.stack.push(new_v);
             },
 
+            .OP_NEG => {
+                const old_v = try self.pop();
+                defer self.release(old_v);
+                const payload: vals.ValueData = switch (old_v.data) {
+                    .Int => |x| .{ .Int = x * -1 } ,
+                    .Float => |x| .{ .Float = x * -1.0},
+                    else => return error.InvalidDataType
+                };
+                const new_v = try self.makeValue(payload);
+                try self.stack.push(new_v);
+            },
+
             .OP_JMP => try self.jump(try self.fetch16(i16)),
             .OP_CALL => {
                 const offs: i16 = try self.fetch16(i16);
