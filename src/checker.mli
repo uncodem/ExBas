@@ -26,6 +26,7 @@ type checker_error =
     | DisallowedTypes of node_type list * Lexer.token_pos
     | IncorrectArity of string * Lexer.token_pos
     | MismatchedFuncArgs of string * node_type list * node_type list * Lexer.token_pos
+    | SyntaxError of string * Lexer.token_pos
 
 type checker_state
 

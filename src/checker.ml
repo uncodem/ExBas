@@ -26,6 +26,7 @@ type checker_error =
     | DisallowedTypes of node_type list * Lexer.token_pos
     | IncorrectArity of string * Lexer.token_pos
     | MismatchedFuncArgs of string * node_type list * node_type list * Lexer.token_pos
+    | SyntaxError of string * Lexer.token_pos
 
 type envtype =
     | Subroutine of node_type * node_type list (* return, param types *)
@@ -191,6 +192,8 @@ let checker_report err =
         let etypes = String.concat ", " (List.map string_of_node_type expected) in
         let gtypes = String.concat ", " (List.map string_of_node_type got) in
         Printf.printf "checker: MismatchedFuncArgs in call to %s. Expected (%s), got (%s) in line %d\n" fname etypes gtypes line
+    | SyntaxError (name, line) ->
+        print_endline ("checker: SyntaxError. " ^ name ^ " in line " ^ string_of_int line)
 
 let typeof_node { kind; _ } = kind
 let nodeof_node { node; _ } = node
@@ -237,6 +240,10 @@ let rec decide_if_any atype btype =
     | T_array x, T_array y -> T_array (decide_if_any x y)
     | _ ->
         assert false (* Shouldn't be called if the types are not equivalent *)
+
+let validate_base state = function
+    | Parser.Assign (Parser.Var _, _, _) | Parser.Var _ -> Ok ()
+    | Parser.Assign (Parser.Index _, _, _) | _ -> Error (SyntaxError ("Assignment only to non-array variables allowed in for loop.", state.current_line))
 
 let rec annotate_node state node =
     match node with
@@ -430,6 +437,7 @@ and annotate_for state node =
     match node with
     | Parser.For (base, dest, step, body, pos) ->
         state.current_line <- pos;
+        let* _ = validate_base state base in
         let* basenode = annotate_node state base in
         let* destnode = annotate_node state dest in
         let* stepnode = annotate_node state step in
