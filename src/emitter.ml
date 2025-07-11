@@ -13,6 +13,8 @@ type const_value =
     | FloatConst of float
 [@@deriving show]
 
+type func_def = Subroutine of string list * Parser.ast_node list
+
 type emitter_state = {
     mutable buffer : emit_me list;
     mutable const_counter : int;
@@ -53,8 +55,14 @@ let del_scope state =
         state.var_counter <- vctl;
         state.vars <- vtl
 
-let emitter_init () =
-    { buffer = []; const_counter = 0; const_pool = Hashtbl.create 32; current_scope = 0; vars = [Hashtbl.create 32]; var_counter = [0] }
+let emitter_init () = {
+    buffer = [];
+    const_counter = 0; 
+    const_pool = Hashtbl.create 32; 
+    current_scope = 0; 
+    vars = [Hashtbl.create 32]; 
+    var_counter = [0];
+}
 
 let constant_of_node = function
     | Parser.Number x -> IntConst x
@@ -102,7 +110,28 @@ let rec emit_node state node =
         def_var state vname;
         emit_node state right;
         emit_val state (RawOp Opcodes.OP_defvar)
+    | Parser.Var vname ->
+        let (vindex, scope_idx) = Option.get (find_var state.vars vname 0) in
+        emit_val state (RawOp Opcodes.OP_pushvar);
+        emit_val state (RawVal scope_idx);
+        emit_val state (RawVal vindex)
+    | Parser.Index _ ->
+        let (vname, indices) = follow_index_chain [] node in
+        let (vindex, scope_idx) = Option.get (find_var state.vars vname 0) in
+        List.iter (emit_node state) indices;
+        (* TODO: VM currently has 6 indexing opcodes, 2 of which handle multidimensional arrays, they haven't been added to the Opcodes module yet. *)
+        (* Would need to restructure emitter since 2 of them use compile-time indexing while 4 use runtime. *)
+        emit_val state (RawOp Opcodes.OP_pushvar);
+        emit_val state (RawVal scope_idx);
+        emit_val state (RawVal vindex)
+
     | Parser.Assign _ -> emit_assign state node 
+    | Parser.Goto (lbl, _) ->
+        emit_val state (RawOp Opcodes.OP_jmp);
+        emit_val state (LabelRef lbl);
+        emit_val state NoEmit
+    | Parser.Label (name, _) ->
+        emit_val state (LabelDef name)
 
     | _ -> failwith "Unhandled node!"
 
