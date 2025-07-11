@@ -35,6 +35,7 @@ pub fn countOperands(opc: Opcode) !u8 {
         .OP_CAST, .OP_CONST, .OP_NATIVE => 1,
 
         .OP_PUSHVAR, .OP_POPVAR, .OP_CREATEARRAY,
+        .OP_CREATEARRAY_ND, .OP_RGET_ND, .OP_RSET_ND,
         .OP_INITARRAY, .OP_CGET, .OP_CSET, .OP_JMP, .OP_TJMP, .OP_CALL, .OP_TCALL, => 2,
 
         .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_AND, 
