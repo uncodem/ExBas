@@ -389,6 +389,41 @@ pub const Vm = struct {
                 try arr.setAt(try v.copy(), try self.fetch16(u16));
             },
 
+            .OP_RGET_ND => {
+                const arr = try self.popExpect(.Array);
+                defer self.release(arr);
+                const depth = try self.fetch16(u16);
+                const indices = try self.allocator.alloc(u16, depth);
+                defer self.allocator.free(indices);
+
+                for (indices, 0..) |_, i| {
+                    const indx_val = try self.popExpect(.Int);
+                    const indx_int = indx_val.data.Int;
+                    if (indx_int < 0) return error.MalformedCode;
+                    indices[depth - 1 - i] = @intCast(indx_int);
+                }
+
+                const v = try self.getND(arr, indices);
+                try self.stack.push(try v.alloc_copy(self.allocator));
+            },
+
+            .OP_RSET_ND => {
+                const v = try self.pop();
+                defer self.release(v);
+                const arr = try self.popExpect(.Array);
+                defer self.release(arr);
+                const depth = try self.fetch16(u16);
+                const indices = try self.allocator.alloc(u16, depth);
+                defer self.allocator.free(indices);
+                for (indices, 0..) |_, i| {
+                    const indx_val = try self.popExpect(.Int);
+                    const indx_int = indx_val.data.Int;
+                    if (indx_int < 0) return error.MalformedCode;
+                    indices[depth - 1 - i] = @intCast(indx_int);
+                }
+                try self.setND(arr, indices, v);
+            },
+
             .OP_SIZE => {
                 const top = try self.pop();
                 defer self.release(top);
