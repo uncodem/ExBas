@@ -23,6 +23,11 @@ type emitter_state = {
     mutable vars : (string, int) Hashtbl.t list;
 }
 
+let rec follow_index_chain acc = function
+    | Parser.Index (left, index) -> follow_index_chain (index :: acc) left
+    | Parser.Var name -> (name, List.rev acc)
+    | _ -> failwith "Not an index chain"
+
 let rec find_var scopes vname count = 
     match scopes with
     | [] -> None
@@ -97,6 +102,7 @@ let rec emit_node state node =
         def_var state vname;
         emit_node state right;
         emit_val state (RawOp Opcodes.OP_defvar)
+    | Parser.Assign _ -> emit_assign state node 
 
     | _ -> failwith "Unhandled node!"
 
@@ -107,6 +113,18 @@ and emit_assign state = function
         emit_val state (RawOp Opcodes.OP_popvar);
         emit_val state (RawVal count);
         emit_val state (RawVal pos)
+    | Parser.Assign (Parser.Index _ as left, right, _) ->
+        let (vname, indices) = follow_index_chain [] left in 
+        let (pos, scope_idx) = Option.get (find_var state.vars vname 0) in
+
+        List.iter (emit_node state) indices;
+        emit_val state (RawOp Opcodes.OP_pushvar);
+        emit_val state (RawVal scope_idx);
+        emit_val state (RawVal pos);
+        emit_node state right;
+
+        (* TODO: While the VM already has the proper opcodes for this, Opcodes module doesn't include it yet. *)
+
     | _ -> assert false
 
 
