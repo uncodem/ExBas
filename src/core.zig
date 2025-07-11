@@ -205,8 +205,8 @@ pub const Vm = struct {
 
         for (ret.data.Array) |*x| {
             const elem = try self.buildArrays(sizes[1..]);
-            defer self.release(elem);
-            x.* = try elem.copy();
+            x.* = elem.*;
+            self.allocator.destroy(elem);
         }
         return ret;
     }
@@ -231,7 +231,37 @@ pub const Vm = struct {
 
     fn reserveArray(self: *Vm, size: u16) !*Value {
         const data = vals.ValueData{ .Array = try self.allocator.alloc(Value, @intCast(size)) };
+        for (data.Array) |*x| {
+            x.* = Value{
+                .allocator = self.allocator,
+                .data = .{.Int = 0},
+                .size = 4
+            };
+        }
         return self.makeValue(data);
+    }
+
+    fn getND(_: *Vm, root: *Value, indices: []const u16) !*Value {
+        if (indices.len == 0) return error.MalformedCode;
+        var current = root;
+        for (indices) |i| {
+            if (current.kind() != .Array) return error.MismatchedTypes;
+            current = &current.data.Array[i];
+        }
+        return current;
+    }
+
+    fn setND(_: *Vm, root: *Value, indices: []const u16, v: *Value) !void {
+        if (indices.len == 0) return error.MalformedCode;
+        var current = root;
+
+        for (indices[0..indices.len-1]) |i| {
+            if (current.kind() != .Array) return error.MismatchedTypes;
+            current = &current.data.Array[i];
+        }
+
+        if (current.kind() != .Array) return error.MismatchedTypes;
+        try current.setAt(try v.copy(), indices[indices.len-1]);
     }
 
     pub fn step(self: *Vm, writer: anytype) !bool {
@@ -513,5 +543,27 @@ test "src/core.zig vars" {
     try expectError(error.UndefinedVariable, vm.getvar(1, 1));
     // These failing getvar calls test setvar calls because they use identical logic for resolving variables.
     try vm.deinit_scope();
+}
+
+
+test "src/core.zig getND, setND usage" {
+    const dummy_prog = [_]u8{@intFromEnum(VmOpcode.OP_RET)} ** 10;
+    const res = try makeTestVm(std.testing.allocator, &dummy_prog);
+    var vm = res.vm;
+    defer vm.deinit();
+    defer {
+        res.program.deinit();
+        res.allocator.destroy(res.program);
+    }
+
+    const arr = try vm.buildArrays(&[_]u16{3,2});
+    defer vm.release(arr);
+
+    const val = try vm.makeValue(.{.Int = 123});
+    defer vm.release(val);
+
+    try vm.setND(arr, &[_]u16{1,0}, val);
+    const ptr = try vm.getND(arr, &[_]u16{1,0});
+    try expect(ptr.data.Int == 123);
 }
 
