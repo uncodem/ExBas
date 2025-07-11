@@ -330,7 +330,7 @@ pub const Vm = struct {
 
             .OP_CREATEARRAY => try self.stack.push(try self.reserveArray(try self.fetch16(u16))),
             .OP_CREATEARRAY_ND => {
-                const depth: u16 = try self.fetch16(u16);
+                const depth = try self.fetch();
                 const sizes = try self.allocator.alloc(u16, depth);
                 for (sizes) |*size| {
                     size.* = try self.fetch16(u16);
@@ -392,7 +392,7 @@ pub const Vm = struct {
             .OP_RGET_ND => {
                 const arr = try self.popExpect(.Array);
                 defer self.release(arr);
-                const depth = try self.fetch16(u16);
+                const depth = try self.fetch();
                 const indices = try self.allocator.alloc(u16, depth);
                 defer self.allocator.free(indices);
 
@@ -412,7 +412,7 @@ pub const Vm = struct {
                 defer self.release(v);
                 const arr = try self.popExpect(.Array);
                 defer self.release(arr);
-                const depth = try self.fetch16(u16);
+                const depth = try self.fetch();
                 const indices = try self.allocator.alloc(u16, depth);
                 defer self.allocator.free(indices);
                 for (indices, 0..) |_, i| {

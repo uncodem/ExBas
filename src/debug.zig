@@ -32,10 +32,9 @@ const BytecodeIter = struct {
 
 pub fn countOperands(opc: Opcode) !u8 {
     return switch(opc) {
-        .OP_CAST, .OP_CONST, .OP_NATIVE => 1,
+        .OP_CAST, .OP_CONST, .OP_NATIVE, .OP_CREATEARRAY_ND, .OP_RGET_ND, .OP_RSET_ND => 1,
 
         .OP_PUSHVAR, .OP_POPVAR, .OP_CREATEARRAY,
-        .OP_CREATEARRAY_ND, .OP_RGET_ND, .OP_RSET_ND,
         .OP_INITARRAY, .OP_CGET, .OP_CSET, .OP_JMP, .OP_TJMP, .OP_CALL, .OP_TCALL, => 2,
 
         .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_AND, 
@@ -63,6 +62,7 @@ pub fn dumpConstants(writer: anytype, program: Program) !void {
 pub fn dumpCode(writer: anytype, program: Program) !void {
     var iter = BytecodeIter.init(program.code);
     var operand_count: u8 = 0;
+    var variadic = false;
 
     try writer.print("{s:<4}  {s:<16}  {s}\n", .{"ADDR", "OPCODE", "OPERANDS"});
 
@@ -75,7 +75,13 @@ pub fn dumpCode(writer: anytype, program: Program) !void {
             };
             try writer.print("{X:04}  {s:<16}  ", .{addr, dumpOpcode(opc)});
             operand_count = try countOperands(opc);
+            if (opc == .OP_CREATEARRAY_ND) variadic = true;
         } else {
+            if (variadic) { 
+                // Get first byte which is oper byte, and then change operand_count to include those.
+                // The only opcode with this should just be OP_CREATEARRAY_ND
+                operand_count += x*2;
+            }
             try writer.print("{X:02} ", .{x});
             operand_count -= 1;
         }
