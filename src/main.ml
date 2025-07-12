@@ -23,7 +23,7 @@ let () =
     | Error e -> Parser.parser_report e *)
 
 let () =
-    let tree = Parser.Assign (Parser.Index (Parser.Var "a", Parser.Number 1), Parser.Number 12, None) in
+    let tree = Parser.Block ([Parser.Binary (Parser.Add, Parser.Number 12, Parser.Number 13)]) in
     let e_state = Emitter.emitter_init () in
     Emitter.def_var e_state "a";
     Emitter.emit_node e_state tree;
