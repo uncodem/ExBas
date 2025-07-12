@@ -12,11 +12,14 @@ type exbvm_opcode =
     | OP_dup
     | OP_drop
     | OP_createarray
+    | OP_createarray_nd
     | OP_initarray
     | OP_cget
     | OP_rget
     | OP_cset
     | OP_rset
+    | OP_rget_nd
+    | OP_rset_nd
     | OP_add
     | OP_sub
     | OP_div

@@ -12,11 +12,14 @@ type exbvm_opcode =
     | OP_dup
     | OP_drop
     | OP_createarray
+    | OP_createarray_nd
     | OP_initarray
     | OP_cget
     | OP_rget
     | OP_cset
     | OP_rset
+    | OP_rget_nd
+    | OP_rset_nd
     | OP_add
     | OP_sub
     | OP_div
@@ -55,30 +58,33 @@ let int_of_exbvm_op = function
     | OP_dup -> 10
     | OP_drop -> 11
     | OP_createarray -> 12
-    | OP_initarray -> 13
-    | OP_cget -> 14
-    | OP_rget -> 15
-    | OP_cset -> 16
-    | OP_rset -> 17
-    | OP_add -> 18
-    | OP_sub -> 19
-    | OP_div -> 20
-    | OP_mul -> 21
-    | OP_mod -> 22
-    | OP_neg -> 23
-    | OP_and -> 24
-    | OP_or -> 25
-    | OP_not -> 26
-    | OP_eql -> 27
-    | OP_neql -> 28
-    | OP_more -> 29
-    | OP_less -> 30
-    | OP_eqmore -> 31
-    | OP_eqless -> 32
-    | OP_jmp -> 33
-    | OP_call -> 34
-    | OP_tjmp -> 35
-    | OP_tcall -> 36
-    | OP_dump -> 37
-    | OP_native -> 38
-    | OP_ret -> 39
+    | OP_createarray_nd -> 13
+    | OP_initarray -> 14
+    | OP_cget -> 15
+    | OP_rget -> 16
+    | OP_cset -> 17
+    | OP_rset -> 18
+    | OP_rget_nd -> 19
+    | OP_rset_nd -> 20
+    | OP_add -> 21
+    | OP_sub -> 22
+    | OP_div -> 23
+    | OP_mul -> 24
+    | OP_mod -> 25
+    | OP_neg -> 26
+    | OP_and -> 27
+    | OP_or -> 28
+    | OP_not -> 29
+    | OP_eql -> 30
+    | OP_neql -> 31
+    | OP_more -> 32
+    | OP_less -> 33
+    | OP_eqmore -> 34
+    | OP_eqless -> 35
+    | OP_jmp -> 36
+    | OP_call -> 37
+    | OP_tjmp -> 38
+    | OP_tcall -> 39
+    | OP_dump -> 40
+    | OP_native -> 41
+    | OP_ret -> 42
