@@ -390,19 +390,17 @@ pub const Vm = struct {
             },
 
             .OP_RGET_ND => {
-                const arr = try self.popExpect(.Array);
-                defer self.release(arr);
                 const depth = try self.fetch();
                 const indices = try self.allocator.alloc(u16, depth);
                 defer self.allocator.free(indices);
-
                 for (indices, 0..) |_, i| {
                     const indx_val = try self.popExpect(.Int);
                     const indx_int = indx_val.data.Int;
                     if (indx_int < 0) return error.MalformedCode;
                     indices[depth - 1 - i] = @intCast(indx_int);
                 }
-
+                const arr = try self.popExpect(.Array);
+                defer self.release(arr);
                 const v = try self.getND(arr, indices);
                 try self.stack.push(try v.alloc_copy(self.allocator));
             },
@@ -410,8 +408,6 @@ pub const Vm = struct {
             .OP_RSET_ND => {
                 const v = try self.pop();
                 defer self.release(v);
-                const arr = try self.popExpect(.Array);
-                defer self.release(arr);
                 const depth = try self.fetch();
                 const indices = try self.allocator.alloc(u16, depth);
                 defer self.allocator.free(indices);
@@ -421,6 +417,8 @@ pub const Vm = struct {
                     if (indx_int < 0) return error.MalformedCode;
                     indices[depth - 1 - i] = @intCast(indx_int);
                 }
+                const arr = try self.popExpect(.Array);
+                defer self.release(arr);
                 try self.setND(arr, indices, v);
             },
 
