@@ -23,8 +23,30 @@ type emitter_state = {
     mutable current_scope : int;
     mutable var_counter : int list;
     mutable vars : (string, int) Hashtbl.t list;
-    mutable stack_effect : int;
+
+    mutable stack_effects : int list;
+
+    mutable block_counter : int;
+    mutable block_stack : int list;
 }
+
+let add_effect x state =
+    match state.stack_effects with
+    | [] -> failwith "Attempted to add effect to empty effect stack"
+    | hd :: tl -> state.stack_effects <- (hd+x) :: tl
+
+let pop_effect state = 
+    match state.stack_effects with
+    | [] -> failwith "Attempted to pop empty effect stack"
+    | _ :: tl -> state.stack_effects <- tl
+
+let push_effect state = 
+    state.stack_effects <- 0 :: state.stack_effects
+
+let zero_effect state =
+    match state.stack_effects with
+    | [] -> failwith "Attempted to zero empty effect stack"
+    | _ :: tl -> state.stack_effects <- 0 :: tl
 
 let rec follow_index_chain acc = function
     | Parser.Index (left, index) -> follow_index_chain (index :: acc) left
@@ -67,8 +89,12 @@ let emitter_init () = {
     current_scope = 0; 
     vars = [Hashtbl.create 32]; 
     var_counter = [0];
-    stack_effect = 0;
+    stack_effects = [0];
+    block_counter = 0;
+    block_stack = [];
 }
+
+let gen_label prefix id = "@" ^ prefix ^ string_of_int id
 
 let constant_of_node = function
     | Parser.Number x -> IntConst x
@@ -96,21 +122,27 @@ let opcode_of_binop = function
 
 let emit_val state v = state.buffer <- v :: state.buffer
 
+let drop_effect state =
+    let count = List.hd state.stack_effects in
+    for _ = 1 to count do
+        emit_val state (RawOp Opcodes.OP_drop)
+    done
+
 let rec emit_node state node =
     match node with
     | Parser.Number _ | Parser.String _ | Parser.Bool _ | Parser.Float _ ->
         let indx = get_const state node in
         emit_val state (RawOp Opcodes.OP_const);
         emit_val state (RawVal indx);
-        state.stack_effect <- state.stack_effect + 1
+        add_effect 1 state
     | Parser.Binary (op, left, right) -> 
         emit_node state left;
         emit_node state right;
         emit_val state (RawOp (opcode_of_binop op));
-        state.stack_effect <- state.stack_effect - 1
+        add_effect (-1) state
     | Parser.Unary (Parser.Not, right) ->
-        emit_val state (RawOp (opcode_of_binop Parser.Not));
-        emit_node state right
+        emit_node state right;
+        emit_val state (RawOp (opcode_of_binop Parser.Not))
     | Parser.Unary (Parser.Sub, right) -> 
         emit_node state right;
         emit_val state (RawOp Opcodes.OP_neg)
@@ -118,24 +150,22 @@ let rec emit_node state node =
         def_var state vname;
         emit_node state right;
         emit_val state (RawOp Opcodes.OP_defvar);
-        state.stack_effect <- state.stack_effect - 1
+        add_effect (-1) state
     | Parser.Var vname ->
         let (vindex, scope_idx) = Option.get (find_var state.vars vname 0) in
         emit_val state (RawOp Opcodes.OP_pushvar);
         emit_val state (RawVal scope_idx);
         emit_val state (RawVal vindex);
-        state.stack_effect <- state.stack_effect + 1
+        add_effect 1 state
     | Parser.Index _ ->
         let (vname, indices) = follow_index_chain [] node in
         let (vindex, scope_idx) = Option.get (find_var state.vars vname 0) in
         let depth = List.length indices in
         List.iter (emit_node state) indices;
-        (* TODO: VM currently has 6 indexing opcodes, 2 of which handle multidimensional arrays, they haven't been added to the Opcodes module yet. *)
-        (* Would need to restructure emitter since 2 of them use compile-time indexing while 4 use runtime. *)
         emit_val state (RawOp Opcodes.OP_pushvar);
         emit_val state (RawVal scope_idx);
         emit_val state (RawVal vindex);
-        state.stack_effect <- state.stack_effect + 1;
+        add_effect 1 state;
         if depth = 1 then emit_val state (RawOp Opcodes.OP_rget)
         else begin
             emit_val state (RawOp Opcodes.OP_rget_nd);
@@ -152,32 +182,50 @@ let rec emit_node state node =
     | Parser.Return (expr_opt, _) ->
         if Option.is_some expr_opt then begin
             emit_node state (Option.get expr_opt);
-            state.stack_effect <- 0
+            zero_effect state;
         end else ();
         emit_val state (RawOp Opcodes.OP_endscope);
         emit_val state (RawOp Opcodes.OP_ret)
-    | Parser.Yield (Some x, _) ->
-        emit_node state x;
-        state.stack_effect <- 0;
-        (* TODO: Provide way for yield to exit, use autogen labels. *)
-    | Parser.Yield (None, _) -> ()
+    | Parser.Yield (expr_opt, _) ->
+        if Option.is_some expr_opt then begin
+            emit_node state (Option.get expr_opt);
+            zero_effect state
+        end else ();
+        emit_val state (RawOp Opcodes.OP_jmp);
+        emit_val state (LabelRef (gen_label "endblock" (List.hd state.block_stack)));
+        emit_val state NoEmit
     | Parser.Block _ -> emit_block state node
-
+    | Parser.Program _ -> emit_program state node
     | _ -> failwith "Unhandled node!"
 
 and emit_block state = function
     | Parser.Block stmts ->
+        push_effect state;
+        state.block_stack <- state.block_counter :: state.block_stack;
+        let current = state.block_counter in
+        state.block_counter <- state.block_counter + 1;
         emit_val state (RawOp Opcodes.OP_startscope);
         new_scope state;
         let aux x = 
                 emit_node state x;
-                for _ = 1 to state.stack_effect do 
-                    emit_val state (RawOp Opcodes.OP_drop)
-                done;
-                state.stack_effect <- 0 in
+                drop_effect state;
+                zero_effect state in
         List.iter aux stmts;
         del_scope state;
-        emit_val state (RawOp Opcodes.OP_endscope)
+        emit_val state (LabelDef (gen_label "endblock" current));
+        emit_val state (RawOp Opcodes.OP_endscope);
+        state.block_stack <- List.tl state.block_stack;
+        pop_effect state;
+    | _ -> assert false
+
+and emit_program state = function
+    | Parser.Program stmts ->
+        let aux x = 
+            emit_node state x;
+            drop_effect state; 
+            zero_effect state in
+        List.iter aux stmts;
+        emit_val state (RawOp Opcodes.OP_ret)
     | _ -> assert false
 
 and emit_assign state = function
@@ -187,7 +235,7 @@ and emit_assign state = function
         emit_val state (RawOp Opcodes.OP_popvar);
         emit_val state (RawVal count);
         emit_val state (RawVal pos);
-        state.stack_effect <- state.stack_effect - 1
+        add_effect (-1) state
     | Parser.Assign (Parser.Index _ as left, right, _) ->
         let (vname, indices) = follow_index_chain [] left in 
         let (pos, scope_idx) = Option.get (find_var state.vars vname 0) in
