@@ -118,12 +118,19 @@ let rec emit_node state node =
     | Parser.Index _ ->
         let (vname, indices) = follow_index_chain [] node in
         let (vindex, scope_idx) = Option.get (find_var state.vars vname 0) in
+        let depth = List.length indices in
         List.iter (emit_node state) indices;
         (* TODO: VM currently has 6 indexing opcodes, 2 of which handle multidimensional arrays, they haven't been added to the Opcodes module yet. *)
         (* Would need to restructure emitter since 2 of them use compile-time indexing while 4 use runtime. *)
         emit_val state (RawOp Opcodes.OP_pushvar);
         emit_val state (RawVal scope_idx);
-        emit_val state (RawVal vindex)
+        emit_val state (RawVal vindex);
+
+        if depth = 1 then emit_val state (RawOp Opcodes.OP_rget)
+        else begin
+            emit_val state (RawOp Opcodes.OP_rget_nd);
+            emit_val state (RawVal depth)
+        end
 
     | Parser.Assign _ -> emit_assign state node 
     | Parser.Goto (lbl, _) ->
@@ -145,14 +152,21 @@ and emit_assign state = function
     | Parser.Assign (Parser.Index _ as left, right, _) ->
         let (vname, indices) = follow_index_chain [] left in 
         let (pos, scope_idx) = Option.get (find_var state.vars vname 0) in
-
-        List.iter (emit_node state) indices;
+        let depth = List.length indices in
         emit_val state (RawOp Opcodes.OP_pushvar);
         emit_val state (RawVal scope_idx);
         emit_val state (RawVal pos);
+
+        List.iter (emit_node state) indices;
         emit_node state right;
 
-        (* TODO: While the VM already has the proper opcodes for this, Opcodes module doesn't include it yet. *)
+        (* TODO: While the VM has compile-time indexing opcodes, we'll just use runtime indexing for now. *)
+        if depth = 1 then emit_val state (RawOp Opcodes.OP_rset)
+        else begin 
+            emit_val state (RawOp Opcodes.OP_rget_nd);
+            emit_val state (RawVal depth)
+        end
+            
 
     | _ -> assert false
 
