@@ -28,7 +28,24 @@ type emitter_state = {
 
     mutable block_counter : int;
     mutable block_stack : int list;
+
+    mutable if_counter : int;
+    mutable if_stack : int list;
 }
+
+let push x stack = x :: stack
+let top = List.hd
+let pop = function
+    | _ :: tl -> tl
+    | [] -> failwith "Tried to pop empty stack"
+
+let peek = function
+    | hd :: _ -> hd
+    | [] -> failwith "Tried to peek empty stack"
+
+let apply_top f = function 
+    | hd :: tl -> f hd :: tl
+    | [] -> failwith "Tried to apply empty stack"
 
 let add_effect x state =
     match state.stack_effects with
@@ -62,14 +79,14 @@ let rec find_var scopes vname count =
         else Some (Option.get res, count)
 
 let def_var state vname = 
-    let scope = List.hd state.vars in
-    let count = List.hd state.var_counter in
+    let scope = peek state.vars in
+    let count = peek state.var_counter in
     Hashtbl.add scope vname count;
-    state.var_counter <- (count + 1) :: List.tl state.var_counter
+    state.var_counter <- apply_top ((+) 1) state.var_counter
 
 let new_scope state = 
-    state.var_counter <- 0 :: state.var_counter;
-    state.vars <- Hashtbl.create 32 :: state.vars
+    state.var_counter <- push 0 state.var_counter;
+    state.vars <- push (Hashtbl.create 32) state.vars
 
 let del_scope state = 
     match state.vars, state.var_counter with
@@ -92,6 +109,8 @@ let emitter_init () = {
     stack_effects = [0];
     block_counter = 0;
     block_stack = [];
+    if_counter = 0;
+    if_stack = [];
 }
 
 let gen_label prefix id = "@" ^ prefix ^ string_of_int id
@@ -123,7 +142,7 @@ let opcode_of_binop = function
 let emit_val state v = state.buffer <- v :: state.buffer
 
 let drop_effect state =
-    let count = List.hd state.stack_effects in
+    let count = peek state.stack_effects in
     for _ = 1 to count do
         emit_val state (RawOp Opcodes.OP_drop)
     done
@@ -192,17 +211,18 @@ let rec emit_node state node =
             zero_effect state
         end else ();
         emit_val state (RawOp Opcodes.OP_jmp);
-        emit_val state (LabelRef (gen_label "endblock" (List.hd state.block_stack)));
+        emit_val state (LabelRef (gen_label "endblock" (peek state.block_stack)));
         emit_val state NoEmit
     | Parser.Block _ -> emit_block state node
     | Parser.Program _ -> emit_program state node
+    | Parser.If _ -> emit_if state node
     | _ -> failwith "Unhandled node!"
 
 and emit_block state = function
     | Parser.Block stmts ->
         push_effect state;
-        state.block_stack <- state.block_counter :: state.block_stack;
         let current = state.block_counter in
+        state.block_stack <- push current state.block_stack;
         state.block_counter <- state.block_counter + 1;
         emit_val state (RawOp Opcodes.OP_startscope);
         new_scope state;
@@ -214,7 +234,7 @@ and emit_block state = function
         del_scope state;
         emit_val state (LabelDef (gen_label "endblock" current));
         emit_val state (RawOp Opcodes.OP_endscope);
-        state.block_stack <- List.tl state.block_stack;
+        state.block_stack <- pop state.block_stack;
         pop_effect state;
     | _ -> assert false
 
@@ -257,6 +277,40 @@ and emit_assign state = function
 
     | _ -> assert false
 
+and emit_if state = function 
+        | Parser.If (cond, tarm, Some farm, pos) ->
+            let counter = state.if_counter in
+            state.if_stack <- push counter state.if_stack;
+            state.if_counter <- state.if_counter + 1; 
+            emit_node state cond;
+            emit_val state (RawOp Opcodes.OP_tjmp);
+            add_effect (-1) state;
+            emit_val state (LabelRef (gen_label "iftrue" counter));
+            emit_val state NoEmit;
+            emit_node state farm;
+            emit_val state (RawOp Opcodes.OP_jmp);
+            emit_val state (LabelRef (gen_label "ifend" counter));
+            emit_val state NoEmit;
+            emit_val state (LabelDef (gen_label "iftrue" counter));
+            emit_node state tarm;
+            emit_val state (LabelDef (gen_label "ifend" counter));
+            state.if_stack <- pop state.if_stack;
+            if Option.is_none pos then zero_effect state 
+            else ()
+        | Parser.If (cond, tarm, None, _) ->
+            let counter = state.if_counter in
+            state.if_stack <- push counter state.if_stack;
+            state.if_counter <- state.if_counter + 1;
+            emit_node state cond;
+            emit_val state (RawOp Opcodes.OP_tjmp);
+            add_effect (-1) state;
+            emit_val state (LabelRef (gen_label "ifend" counter));
+            emit_val state NoEmit;
+            emit_node state tarm;
+            emit_val state (LabelDef (gen_label "ifend" counter));
+            state.if_stack <- pop state.if_stack
+            (* We don't check if we zero_effect here since if-exprs always have else arms. *)
+        | _ -> assert false
 
 and get_const state v =
     let k = constant_of_node v in
