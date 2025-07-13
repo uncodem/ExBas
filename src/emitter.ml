@@ -227,6 +227,7 @@ let rec emit_node state node =
     | Parser.Block _ -> emit_block state node
     | Parser.Program _ -> emit_program state node
     | Parser.If _ -> emit_if state node
+    | Parser.While _ -> emit_while state node
     | _ -> failwith "Unhandled node!"
 
 and emit_block state = function
