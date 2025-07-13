@@ -148,6 +148,20 @@ let opcode_of_binop = function
 
 let emit_val state v = state.buffer <- v :: state.buffer
 
+let emit_stash_value state =
+    let (stash_idx, global_idx) = Option.get (find_var state.vars "@stash" 0) in
+    emit_val state (RawOp Opcodes.OP_dup);
+    emit_val state (RawOp Opcodes.OP_popvar);
+    emit_val state (RawVal global_idx);
+    emit_val state (RawVal stash_idx)
+
+let emit_load_stash state =
+    let (stash_idx, global_idx) = Option.get (find_var state.vars "@stash" 0) in
+    emit_val state (RawOp Opcodes.OP_pushvar);
+    emit_val state (RawVal global_idx);
+    emit_val state (RawVal stash_idx);
+    add_effect 1 state
+
 let drop_effect state =
     let count = peek state.stack_effects in
     for _ = 1 to count do
@@ -270,29 +284,34 @@ and emit_assign state = function
     | Parser.Assign (Parser.Var vname, right, isstmt_opt) ->
         let (pos, count) = Option.get ( find_var state.vars vname 0 ) in
         emit_node state right;
-        if Option.is_some isstmt_opt then emit_val state (RawOp Opcodes.OP_dup)
+        if Option.is_none isstmt_opt then emit_val state (RawOp Opcodes.OP_dup)
         else add_effect (-1) state;
         emit_val state (RawOp Opcodes.OP_popvar);
         emit_val state (RawVal count);
         emit_val state (RawVal pos);
-    | Parser.Assign (Parser.Index _ as left, right, _) ->
+    | Parser.Assign (Parser.Index _ as left, right, isstmt_opt) ->
         let (vname, indices) = follow_index_chain [] left in 
         let (pos, scope_idx) = Option.get (find_var state.vars vname 0) in
         let depth = List.length indices in
+        let is_expr = Option.is_none isstmt_opt in
         emit_val state (RawOp Opcodes.OP_pushvar);
         emit_val state (RawVal scope_idx);
         emit_val state (RawVal pos);
 
         List.iter (emit_node state) indices;
         emit_node state right;
+        if is_expr then emit_stash_value state
+        else ();
 
         (* TODO: While the VM has compile-time indexing opcodes, we'll just use runtime indexing for now. *)
         if depth = 1 then emit_val state (RawOp Opcodes.OP_rset)
         else begin 
             emit_val state (RawOp Opcodes.OP_rset_nd);
             emit_val state (RawVal depth)
-        end
-            
+        end;
+        
+        if is_expr then emit_load_stash state
+        else ()
 
     | _ -> assert false
 
