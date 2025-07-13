@@ -102,20 +102,23 @@ let rec get_vname = function
     | Parser.Assign (left, _, _) -> get_vname left
     | _ -> assert false
 
-let emitter_init () = {
-    buffer = [];
-    const_counter = 0; 
-    const_pool = Hashtbl.create 32; 
-    current_scope = 0; 
-    vars = [Hashtbl.create 32]; 
-    var_counter = [0];
-    stack_effects = [0];
-    block_counter = 0;
-    block_stack = [];
-    if_counter = 0;
-    while_counter = 0;
-(*    for_counter = 0; *)
-}
+let emitter_init () = 
+    let ret = {
+        buffer = [];
+        const_counter = 0; 
+        const_pool = Hashtbl.create 32; 
+        current_scope = 0; 
+        vars = [Hashtbl.create 32]; 
+        var_counter = [0];
+        stack_effects = [0];
+        block_counter = 0;
+        block_stack = [];
+        if_counter = 0;
+        while_counter = 0;
+    (*    for_counter = 0; *)
+    } in
+    def_var ret "@stash";
+    ret
 
 let gen_label prefix id = "@" ^ prefix ^ string_of_int id
 
