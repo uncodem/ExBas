@@ -69,7 +69,7 @@ let zero_effect state =
 
 let rec follow_index_chain acc = function
     | Parser.Index (left, index) -> follow_index_chain (index :: acc) left
-    | Parser.Var name -> (name, List.rev acc)
+    | Parser.Var _ as v  -> (v, List.rev acc)
     | _ -> failwith "Not an index chain"
 
 let rec find_var scopes vname count = 
@@ -208,14 +208,10 @@ let rec emit_node state node =
         emit_val state (RawVal vindex);
         add_effect 1 state
     | Parser.Index _ ->
-        let (vname, indices) = follow_index_chain [] node in
-        let (vindex, scope_idx) = Option.get (find_var state.vars vname 0) in
+        let (vnode, indices) = follow_index_chain [] node in
         let depth = List.length indices in
+        emit_node state vnode;
         List.iter (emit_node state) indices;
-        emit_val state (RawOp Opcodes.OP_pushvar);
-        emit_val state (RawVal scope_idx);
-        emit_val state (RawVal vindex);
-        add_effect 1 state;
         if depth = 1 then emit_val state (RawOp Opcodes.OP_rget)
         else begin
             emit_val state (RawOp Opcodes.OP_rget_nd);
@@ -248,6 +244,7 @@ let rec emit_node state node =
     | Parser.Program _ -> emit_program state node
     | Parser.If _ -> emit_if state node
     | Parser.While _ -> emit_while state node
+    | Parser.Dim _ -> emit_dim state node
     | _ -> failwith "Unhandled node!"
 
 and emit_block state = function
@@ -290,16 +287,14 @@ and emit_assign state = function
         emit_val state (RawVal count);
         emit_val state (RawVal pos);
     | Parser.Assign (Parser.Index _ as left, right, isstmt_opt) ->
-        let (vname, indices) = follow_index_chain [] left in 
-        let (pos, scope_idx) = Option.get (find_var state.vars vname 0) in
+        let (vnode, indices) = follow_index_chain [] left in 
         let depth = List.length indices in
         let is_expr = Option.is_none isstmt_opt in
-        emit_val state (RawOp Opcodes.OP_pushvar);
-        emit_val state (RawVal scope_idx);
-        emit_val state (RawVal pos);
 
+        emit_node state vnode;
         List.iter (emit_node state) indices;
         emit_node state right;
+
         if is_expr then emit_stash_value state
         else ();
 
@@ -309,7 +304,7 @@ and emit_assign state = function
             emit_val state (RawOp Opcodes.OP_rset_nd);
             emit_val state (RawVal depth)
         end;
-        
+        add_effect (-depth-2) state;
         if is_expr then emit_load_stash state
         else ()
 
@@ -363,6 +358,25 @@ and emit_while state = function
             emit_val state NoEmit;
             emit_val state (LabelDef (gen_label "whileend" counter))
         | _ -> assert false
+
+and emit_dim state = function
+    | Parser.Dim (vname, sizes, _, _)  -> (* Typing is ignored because the VM allows arrays to contain anything, it's more for the typechecker *)
+        let sizes = List.map (function | Parser.Number x -> x | _ -> assert false) sizes in (* Weirdly enough, the parser restricts sizes to Number nodes only *)
+        let depth = List.length sizes in
+        def_var state vname;
+        if depth = 1 then begin
+            emit_val state (RawOp Opcodes.OP_createarray);
+            emit_val state (RawVal (List.hd sizes));
+            emit_val state NoEmit
+        end
+        else begin
+            emit_val state (RawOp Opcodes.OP_createarray_nd);
+            emit_val state (RawVal depth);
+            List.iter (fun x -> emit_val state (RawVal x); emit_val state NoEmit) sizes;
+        end;
+        emit_val state (RawOp Opcodes.OP_defvar)
+    | _ -> assert false
+
 
 (*and emit_for state = function
         | Parser.For (base, dest, step, body, _) ->
