@@ -324,12 +324,17 @@ and emit_while state = function
         | Parser.While (cond, body, _) ->
             let counter = state.while_counter in
             state.while_counter <- state.while_counter + 1;
-            emit_val state (LabelDef (gen_label "whilestart" counter));
-            emit_node state body;
+            emit_val state (LabelDef (gen_label "whilecond" counter));
             emit_node state cond;
+            emit_val state (RawOp Opcodes.OP_not);
             emit_val state (RawOp Opcodes.OP_tjmp);
             add_effect (-1) state;
-            emit_val state (LabelRef (gen_label "whilestart" counter));
+            emit_val state (LabelRef (gen_label "whileend" counter));
             emit_val state NoEmit;
+            emit_node state body;
+            emit_val state (RawOp Opcodes.OP_jmp);
+            emit_val state (LabelRef (gen_label "whilecond" counter));
+            emit_val state NoEmit;
+            emit_val state (LabelDef (gen_label "whileend" counter))
         | _ -> assert false
 
