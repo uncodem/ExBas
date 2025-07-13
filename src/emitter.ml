@@ -32,6 +32,7 @@ type emitter_state = {
     mutable if_counter : int;
 
     mutable while_counter : int;
+(*    mutable for_counter : int; *)
 }
 
 let push x stack = x :: stack
@@ -96,9 +97,10 @@ let del_scope state =
         state.var_counter <- vctl;
         state.vars <- vtl
 
-let repeat n x =
-    let rec aux acc n = if n = 0 then List.rev acc else aux (x::acc) (n-1) in
-    aux [] n
+let rec get_vname = function 
+    | Parser.Var vname -> vname
+    | Parser.Assign (left, _, _) -> get_vname left
+    | _ -> assert false
 
 let emitter_init () = {
     buffer = [];
@@ -112,6 +114,7 @@ let emitter_init () = {
     block_stack = [];
     if_counter = 0;
     while_counter = 0;
+(*    for_counter = 0; *)
 }
 
 let gen_label prefix id = "@" ^ prefix ^ string_of_int id
@@ -261,13 +264,14 @@ and emit_program state = function
     | _ -> assert false
 
 and emit_assign state = function
-    | Parser.Assign (Parser.Var vname, right, _) ->
+    | Parser.Assign (Parser.Var vname, right, isstmt_opt) ->
         let (pos, count) = Option.get ( find_var state.vars vname 0 ) in
         emit_node state right;
+        if Option.is_some isstmt_opt then emit_val state (RawOp Opcodes.OP_dup)
+        else add_effect (-1) state;
         emit_val state (RawOp Opcodes.OP_popvar);
         emit_val state (RawVal count);
         emit_val state (RawVal pos);
-        add_effect (-1) state
     | Parser.Assign (Parser.Index _ as left, right, _) ->
         let (vname, indices) = follow_index_chain [] left in 
         let (pos, scope_idx) = Option.get (find_var state.vars vname 0) in
@@ -338,3 +342,10 @@ and emit_while state = function
             emit_val state (LabelDef (gen_label "whileend" counter))
         | _ -> assert false
 
+(*and emit_for state = function
+        | Parser.For (base, dest, step, body, _) ->
+            let counter = state.for_counter in 
+            state.for_counter <- state.for_counter + 1;
+            emit_val state (LabelDef (gen_label "forcond" counter));
+        | _ -> assert false
+*)
