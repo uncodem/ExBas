@@ -431,6 +431,10 @@ and parse_if_stmt st =
             let _, st4' = next st3' in
             let* fexpr, st5' = parse_expr st4' in
             Ok (If (cond, texpr, Some fexpr, Some pos), st5')
+        | Some (Lexer.ElseIf _) ->
+            let _, st4' = next st3' in
+            let* fexpr, st5' = parse_if_stmt st4' in
+            Ok (If (cond, texpr, Some fexpr, Some pos), st5')
         | _ -> Ok (If (cond, texpr, None, Some pos), st3'))
     | _ -> assert false
 

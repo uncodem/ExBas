@@ -17,6 +17,7 @@ type token =
     | If of token_pos
     | Then of token_pos
     | Else of token_pos
+    | ElseIf of token_pos
     | Let of token_pos
     | Sub of token_pos
     | Colon of token_pos
@@ -88,6 +89,7 @@ let convert_token t =
         | "let" -> Let pos
         | "sub" -> Sub pos
         | "else" -> Else pos
+        | "elseif" -> ElseIf pos
         | "return" -> Return pos
         | "while" -> While pos
         | "for" -> For pos
@@ -134,6 +136,7 @@ let print_token = function
     | Or _ -> print_endline "Or"
     | Yield _ -> print_endline "Yield"
     | Dim _ -> print_endline "Dim"
+    | ElseIf _ -> print_endline "ElseIf"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -171,6 +174,7 @@ let errorstring_of_token = function
     | Or line -> "Or of line " ^ string_of_int line
     | Yield line -> "Yield of line " ^ string_of_int line
     | Dim line -> "Dim of line " ^ string_of_int line
+    | ElseIf line -> "ElseIf of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 

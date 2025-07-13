@@ -30,7 +30,8 @@ type emitter_state = {
     mutable block_stack : int list;
 
     mutable if_counter : int;
-    mutable if_stack : int list;
+
+    mutable while_counter : int;
 }
 
 let push x stack = x :: stack
@@ -110,7 +111,7 @@ let emitter_init () = {
     block_counter = 0;
     block_stack = [];
     if_counter = 0;
-    if_stack = [];
+    while_counter = 0;
 }
 
 let gen_label prefix id = "@" ^ prefix ^ string_of_int id
@@ -146,6 +147,16 @@ let drop_effect state =
     for _ = 1 to count do
         emit_val state (RawOp Opcodes.OP_drop)
     done
+
+let get_const state v =
+    let k = constant_of_node v in
+    match Hashtbl.find_opt state.const_pool k with
+    | Some indx -> indx
+    | None ->
+        let indx = state.const_counter in
+        Hashtbl.add state.const_pool k indx;
+        state.const_counter <- indx + 1;
+        indx
 
 let rec emit_node state node =
     match node with
@@ -280,7 +291,6 @@ and emit_assign state = function
 and emit_if state = function 
         | Parser.If (cond, tarm, Some farm, pos) ->
             let counter = state.if_counter in
-            state.if_stack <- push counter state.if_stack;
             state.if_counter <- state.if_counter + 1; 
             emit_node state cond;
             emit_val state (RawOp Opcodes.OP_tjmp);
@@ -294,12 +304,10 @@ and emit_if state = function
             emit_val state (LabelDef (gen_label "iftrue" counter));
             emit_node state tarm;
             emit_val state (LabelDef (gen_label "ifend" counter));
-            state.if_stack <- pop state.if_stack;
             if Option.is_none pos then zero_effect state 
             else ()
         | Parser.If (cond, tarm, None, _) ->
             let counter = state.if_counter in
-            state.if_stack <- push counter state.if_stack;
             state.if_counter <- state.if_counter + 1;
             emit_node state cond;
             emit_val state (RawOp Opcodes.OP_tjmp);
@@ -308,16 +316,19 @@ and emit_if state = function
             emit_val state NoEmit;
             emit_node state tarm;
             emit_val state (LabelDef (gen_label "ifend" counter));
-            state.if_stack <- pop state.if_stack
             (* We don't check if we zero_effect here since if-exprs always have else arms. *)
         | _ -> assert false
 
-and get_const state v =
-    let k = constant_of_node v in
-    match Hashtbl.find_opt state.const_pool k with
-    | Some indx -> indx
-    | None ->
-        let indx = state.const_counter in
-        Hashtbl.add state.const_pool k indx;
-        state.const_counter <- indx + 1;
-        indx
+and emit_while state = function
+        | Parser.While (cond, body, _) ->
+            let counter = state.while_counter in
+            state.while_counter <- state.while_counter + 1;
+            emit_val state (LabelDef (gen_label "whilestart" counter));
+            emit_node state body;
+            emit_node state cond;
+            emit_val state (RawOp Opcodes.OP_tjmp);
+            add_effect (-1) state;
+            emit_val state (LabelRef (gen_label "whilestart" counter));
+            emit_val state NoEmit;
+        | _ -> assert false
+

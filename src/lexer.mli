@@ -17,6 +17,7 @@ type token =
     | If of token_pos
     | Then of token_pos
     | Else of token_pos
+    | ElseIf of token_pos
     | Let of token_pos
     | Sub of token_pos
     | Colon of token_pos
