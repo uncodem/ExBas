@@ -32,7 +32,7 @@ type emitter_state = {
     mutable if_counter : int;
 
     mutable while_counter : int;
-(*    mutable for_counter : int; *)
+    mutable for_counter : int; 
 }
 
 let push x stack = x :: stack
@@ -115,7 +115,7 @@ let emitter_init () =
         block_stack = [];
         if_counter = 0;
         while_counter = 0;
-    (*    for_counter = 0; *)
+        for_counter = 0; 
     } in
     def_var ret "@stash";
     ret
@@ -245,6 +245,7 @@ let rec emit_node state node =
     | Parser.If _ -> emit_if state node
     | Parser.While _ -> emit_while state node
     | Parser.Dim _ -> emit_dim state node
+    | Parser.For _ -> emit_for state node
     | _ -> failwith "Unhandled node!"
 
 and emit_block state = function
@@ -378,10 +379,26 @@ and emit_dim state = function
     | _ -> assert false
 
 
-(*and emit_for state = function
+and emit_for state = function
         | Parser.For (base, dest, step, body, _) ->
             let counter = state.for_counter in 
             state.for_counter <- state.for_counter + 1;
-            emit_val state (LabelDef (gen_label "forcond" counter));
+            let vname = get_vname base in
+            let step_node = Parser.Assign (Parser.Var vname, Parser.Binary (Parser.Add, Parser.Var vname, step), None) in
+            emit_node state base; (* +1 *)
+            emit_val state (LabelDef (gen_label "forcond" counter)); 
+            emit_node state dest; (* +1 *)
+            emit_val state (RawOp Opcodes.OP_eql); (* -2 + 1 = -1 *)
+            emit_val state (RawOp Opcodes.OP_tjmp); (* -1 *)
+            add_effect (-2) state;
+            emit_val state (LabelRef (gen_label "forend" counter));
+            emit_val state NoEmit;
+            emit_node state body;
+            emit_node state step_node; (* +1 *)
+            emit_val state (RawOp Opcodes.OP_jmp);
+            emit_val state (LabelRef (gen_label "forcond" counter));
+            emit_val state NoEmit;
+            emit_val state (LabelDef (gen_label "forend" counter));
+            add_effect (-1) state
         | _ -> assert false
-*)
+
