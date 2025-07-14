@@ -433,15 +433,16 @@ and emit_for state = function
 and emit_call state = function
         | Parser.Call (fname, params) | Parser.Statement (fname, params, _) ->
             let param_count = List.length params in
+            List.iter (emit_node state) params;
+            add_effect (-param_count) state;
             let fentry = Hashtbl.find state.func_table fname in (
             match fentry with
             | Intrinsic (ops, x) ->
                 add_effect x state;
-                state.buffer <- ops @ state.buffer;
+                state.buffer <- (List.rev ops) @ state.buffer;
             | Subroutine _ ->
-                List.iter (emit_node state) params;
-                add_effect (-param_count) state;
                 emit_val state (RawOp Opcodes.OP_call);
-                emit_val state (LabelRef ("@" ^ fname)) )
+                emit_val state (LabelRef ("@" ^ fname)) );
+                emit_val state NoEmit
         | _ -> assert false
 
