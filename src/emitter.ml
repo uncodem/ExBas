@@ -13,7 +13,29 @@ type const_value =
     | FloatConst of float
 [@@deriving show]
 
-(* type func_def = Subroutine of string list * Parser.ast_node list *)
+type func_def = 
+    | Subroutine of string list * Parser.ast_node list
+    | Intrinsic of emit_me list
+
+let intrinsics = [
+    ("print", [RawOp Opcodes.OP_native; RawVal 0]);
+    ("input", [RawOp Opcodes.OP_native; RawVal 1]);
+    ("size", [RawOp Opcodes.OP_size]);
+
+    ("int2str", [RawOp Opcodes.OP_cast; RawVal 1]);
+    ("float2str", [RawOp Opcodes.OP_cast; RawVal 1]);
+
+    ("int2float", [RawOp Opcodes.OP_cast; RawVal 3]);
+    ("str2float", [RawOp Opcodes.OP_cast; RawVal 3]);
+
+    ("str2int", [RawOp Opcodes.OP_cast; RawVal 0]);
+    ("float2int", [RawOp Opcodes.OP_cast; RawVal 0]);
+
+    ("any", []);
+    ("str2any", []);
+    ("int2any", []);
+    ("float2any", []);
+]
 
 type emitter_state = {
     mutable buffer : emit_me list;
@@ -33,6 +55,8 @@ type emitter_state = {
 
     mutable while_counter : int;
     mutable for_counter : int; 
+
+    func_table: (string, func_def) Hashtbl.t;
 }
 
 let push x stack = x :: stack
