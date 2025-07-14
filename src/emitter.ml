@@ -13,7 +13,7 @@ type const_value =
     | FloatConst of float
 [@@deriving show]
 
-type func_def = Subroutine of string list * Parser.ast_node list
+(* type func_def = Subroutine of string list * Parser.ast_node list *)
 
 type emitter_state = {
     mutable buffer : emit_me list;
@@ -367,7 +367,7 @@ and emit_dim state = function
         def_var state vname;
         if depth = 1 then begin
             emit_val state (RawOp Opcodes.OP_createarray);
-            emit_val state (RawVal (List.hd sizes));
+            emit_val state (RawVal (top sizes));
             emit_val state NoEmit
         end
         else begin
