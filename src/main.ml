@@ -25,11 +25,3 @@ let () =
         | Error e -> Checker.checker_report e)
     | Error e -> Parser.parser_report e
 
-(*
-let () =
-    let tree = Parser.Block ([Parser.Yield (Some (Parser.Binary (Parser.Add, Parser.Number 12, Parser.Number 13)), 0)]) in
-    let e_state = Emitter.emitter_init () in
-    Emitter.def_var e_state "a";
-    Emitter.emit_node e_state tree;
-    List.iter (fun x -> print_endline (Emitter.show_emit_me x)) (List.rev e_state.buffer)
-*)
