@@ -142,7 +142,7 @@ let emitter_init () =
         for_counter = 0; 
         func_table = Hashtbl.create 32;
     } in
-    List.iter (fun (name, contents) -> Hashtbl.add ret.func_table name (Intrinsic contents)) intrinsics
+    List.iter (fun (name, contents) -> Hashtbl.add ret.func_table name (Intrinsic contents)) intrinsics;
     def_var ret "@stash";
     ret
 

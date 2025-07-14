@@ -11,6 +11,8 @@ type const_value =
     | BoolConst of bool
     | FloatConst of float
 
+type func_def
+
 type emitter_state = {
     mutable buffer : emit_me list;
     mutable const_counter : int;
@@ -29,6 +31,8 @@ type emitter_state = {
 
     mutable while_counter : int;
     mutable for_counter : int; 
+
+    func_table: (string, func_def) Hashtbl.t;
 }
 
 val emitter_init : unit -> emitter_state
