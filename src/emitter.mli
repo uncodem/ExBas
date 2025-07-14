@@ -11,7 +11,9 @@ type const_value =
     | BoolConst of bool
     | FloatConst of float
 
-type func_def
+type func_def = 
+    | Subroutine of string list * Parser.ast_node list
+    | Intrinsic of emit_me list * int
 
 type emitter_state = {
     mutable buffer : emit_me list;

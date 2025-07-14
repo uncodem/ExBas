@@ -15,26 +15,26 @@ type const_value =
 
 type func_def = 
     | Subroutine of string list * Parser.ast_node list
-    | Intrinsic of emit_me list
+    | Intrinsic of emit_me list * int
 
 let intrinsics = [
-    ("print", [RawOp Opcodes.OP_native; RawVal 0]);
-    ("input", [RawOp Opcodes.OP_native; RawVal 1]);
-    ("size", [RawOp Opcodes.OP_size]);
+    ("print", [RawOp Opcodes.OP_native; RawVal 0], -1);
+    ("input", [RawOp Opcodes.OP_native; RawVal 1], 1);
+    ("size", [RawOp Opcodes.OP_size], 1);
 
-    ("int2str", [RawOp Opcodes.OP_cast; RawVal 1]);
-    ("float2str", [RawOp Opcodes.OP_cast; RawVal 1]);
+    ("int2str", [RawOp Opcodes.OP_cast; RawVal 1], 0);
+    ("float2str", [RawOp Opcodes.OP_cast; RawVal 1], 0);
 
-    ("int2float", [RawOp Opcodes.OP_cast; RawVal 3]);
-    ("str2float", [RawOp Opcodes.OP_cast; RawVal 3]);
+    ("int2float", [RawOp Opcodes.OP_cast; RawVal 3], 0);
+    ("str2float", [RawOp Opcodes.OP_cast; RawVal 3], 0);
 
-    ("str2int", [RawOp Opcodes.OP_cast; RawVal 0]);
-    ("float2int", [RawOp Opcodes.OP_cast; RawVal 0]);
+    ("str2int", [RawOp Opcodes.OP_cast; RawVal 0], 0);
+    ("float2int", [RawOp Opcodes.OP_cast; RawVal 0], 0);
 
-    ("any", []);
-    ("str2any", []);
-    ("int2any", []);
-    ("float2any", []);
+    ("any", [], 0);
+    ("str2any", [], 0);
+    ("int2any", [], 0);
+    ("float2any", [], 0);
 ]
 
 type emitter_state = {
@@ -142,7 +142,8 @@ let emitter_init () =
         for_counter = 0; 
         func_table = Hashtbl.create 32;
     } in
-    List.iter (fun (name, contents) -> Hashtbl.add ret.func_table name (Intrinsic contents)) intrinsics;
+    let register_intrinsic = fun (name, data, x) -> Hashtbl.add ret.func_table name (Intrinsic (data, x)) in
+    List.iter register_intrinsic intrinsics;
     def_var ret "@stash";
     ret
 
@@ -272,6 +273,7 @@ let rec emit_node state node =
     | Parser.While _ -> emit_while state node
     | Parser.Dim _ -> emit_dim state node
     | Parser.For _ -> emit_for state node
+    | Parser.Call _ | Parser.Statement _ -> emit_call state node
     | _ -> failwith "Unhandled node!"
 
 and emit_block state = function
@@ -426,5 +428,20 @@ and emit_for state = function
             emit_val state NoEmit;
             emit_val state (LabelDef (gen_label "forend" counter));
             add_effect (-1) state
+        | _ -> assert false
+
+and emit_call state = function
+        | Parser.Call (fname, params) | Parser.Statement (fname, params, _) ->
+            let param_count = List.length params in
+            let fentry = Hashtbl.find state.func_table fname in (
+            match fentry with
+            | Intrinsic (ops, x) ->
+                add_effect x state;
+                state.buffer <- ops @ state.buffer;
+            | Subroutine _ ->
+                List.iter (emit_node state) params;
+                add_effect (-param_count) state;
+                emit_val state (RawOp Opcodes.OP_call);
+                emit_val state (LabelRef ("@" ^ fname)) )
         | _ -> assert false
 
