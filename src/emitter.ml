@@ -442,7 +442,7 @@ and emit_call state = function
                 state.buffer <- (List.rev ops) @ state.buffer;
             | Subroutine _ ->
                 emit_val state (RawOp Opcodes.OP_call);
-                emit_val state (LabelRef ("@" ^ fname)) );
-                emit_val state NoEmit
+                emit_val state (LabelRef ("@" ^ fname));
+                emit_val state NoEmit)
         | _ -> assert false
 
