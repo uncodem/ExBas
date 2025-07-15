@@ -3,4 +3,4 @@
  (name main)
  (preprocess
   (pps ppx_deriving.show))
- (modules main parser lexer opcodes emitter checker))
+ (modules main parser lexer opcodes emitter checker bingen))
