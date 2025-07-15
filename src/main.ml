@@ -10,18 +10,23 @@ let read_lines fname =
     aux [] ^ "\n"
 
 let () =
-    let tokens = Lexer.lexer_init (read_lines "test.txt") in
-    let res = tokens |> Parser.parser_init |> Parser.parse_all in
-    match res with
-    | Ok a -> (
-        match Checker.checker_init a with
-        | Ok _ ->
-            let (emitted, const_pool) = Emitter.emitter_emit a in
-            let raw = Bingen.emit_final emitted const_pool in
-            let oc = open_out_bin "out.bin" in
-            List.iter (fun x -> Emitter.show_emit_me x |> print_endline) emitted;
-            List.iter (output_byte oc) raw;
-            close_out oc
-            (* List.iter (fun x -> string_of_int x |> print_endline) raw *)
-        | Error e -> Checker.checker_report e)
-    | Error e -> Parser.parser_report e
+    if (Array.length Sys.argv - 1) <> 2 then 
+        print_endline ("Usage : " ^ Sys.argv.(0) ^ " <source.exbs> <output.exb>")
+    else
+        let source = Sys.argv.(1) in
+        let outpt = Sys.argv.(2) in
+        let contents = read_lines source in
+        let res = contents
+            |> Lexer.lexer_init |> Parser.parser_init |> Parser.parse_all in
+        match res with
+        | Ok a -> (
+            match Checker.checker_init a with
+            | Ok _ -> 
+                let (emitted, const_pool) = Emitter.emitter_emit a in
+                let raw = Bingen.emit_final emitted const_pool in
+                let oc = open_out_bin outpt in
+                List.iter (output_byte oc) raw;
+                close_out oc
+            | Error e -> Checker.checker_report e)
+        | Error e -> Parser.parser_report e
+
