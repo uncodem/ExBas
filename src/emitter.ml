@@ -274,6 +274,7 @@ let rec emit_node state node =
     | Parser.Dim _ -> emit_dim state node
     | Parser.For _ -> emit_for state node
     | Parser.Call _ | Parser.Statement _ -> emit_call state node
+    | Parser.FuncDef _ -> emit_funcdef state node
     | _ -> failwith "Unhandled node!"
 
 and emit_block state = function
@@ -444,5 +445,12 @@ and emit_call state = function
                 emit_val state (RawOp Opcodes.OP_call);
                 emit_val state (LabelRef ("@" ^ fname));
                 emit_val state NoEmit)
+        | _ -> assert false
+
+and emit_funcdef state = function
+        | Parser.FuncDef (name, params, _, Parser.Block body, _) ->
+            let param_names = List.map fst params in
+            Hashtbl.add state.func_table name (Subroutine (param_names, body));
+            (* TODO: Simply gather the statements for now, I don't have an idea for how I'm going to treat this in pass 2 *)
         | _ -> assert false
 
