@@ -14,7 +14,7 @@ type const_value =
 [@@deriving show]
 
 type func_def = 
-    | Subroutine of string list * Parser.ast_node list
+    | Subroutine of string list * emit_me list
     | Intrinsic of emit_me list * int
 
 let intrinsics = [
@@ -447,10 +447,36 @@ and emit_call state = function
                 emit_val state NoEmit)
         | _ -> assert false
 
+and emit_funcdef_body state params body = 
+    push_effect state;
+
+    emit_val state (RawOp Opcodes.OP_startscope);
+    new_scope state;
+
+    let aux x = 
+        emit_node state x;
+        drop_effect state;
+        zero_effect state in
+
+    let def_params name =
+        def_var state name;
+        emit_val state (RawOp Opcodes.OP_defvar) in
+
+    List.iter def_params (List.rev params);
+    List.iter aux body;
+
+    del_scope state;
+    emit_val state (RawOp Opcodes.OP_endscope);
+    emit_val state (RawOp Opcodes.OP_ret);
+    pop_effect state
+
 and emit_funcdef state = function
         | Parser.FuncDef (name, params, _, Parser.Block body, _) ->
+            let global_code = state.buffer in
             let param_names = List.map fst params in
-            Hashtbl.add state.func_table name (Subroutine (param_names, body));
-            (* TODO: Simply gather the statements for now, I don't have an idea for how I'm going to treat this in pass 2 *)
+            state.buffer <- [];
+            emit_funcdef_body state param_names body;
+            Hashtbl.add state.func_table name (Subroutine (param_names, state.buffer));
+            state.buffer <- global_code
         | _ -> assert false
 

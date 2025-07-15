@@ -12,7 +12,7 @@ type const_value =
     | FloatConst of float
 
 type func_def = 
-    | Subroutine of string list * Parser.ast_node list
+    | Subroutine of string list * emit_me list
     | Intrinsic of emit_me list * int
 
 type emitter_state = {
