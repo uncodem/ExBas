@@ -423,13 +423,13 @@ and parse_assignment st =
 and parse_if_stmt st =
     let* cond, st' = parse_expr st in
     let* then_tok, st2' = expect_then st' in
-    let* texpr, st3' = parse_expr st2' in
+    let* texpr, st3' = parse_semi_stmt st2' in
     match then_tok with
     | Lexer.Then pos -> (
         match peek st3' with
         | Some (Lexer.Else _) ->
             let _, st4' = next st3' in
-            let* fexpr, st5' = parse_expr st4' in
+            let* fexpr, st5' = parse_semi_stmt st4' in
             Ok (If (cond, texpr, Some fexpr, Some pos), st5')
         | Some (Lexer.ElseIf _) ->
             let _, st4' = next st3' in
@@ -637,6 +637,14 @@ and parse_stmts st blocked =
             parse_stmts_aux st' (stmt :: acc)
     in
     parse_stmts_aux st []
+
+and parse_semi_stmt st =
+    match peek st with
+    | None -> Error UnexpectedEOF 
+    | Some Lexer.SemiStmt _ -> 
+        let _, st' = next st in
+        parse_stmt st'
+    | _ -> parse_expr st
 
 let parse_all st =
     let* stmts, _ = parse_stmts st false in

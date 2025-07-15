@@ -328,6 +328,7 @@ and emit_if state = function
         let counter = state.if_counter in
         state.if_counter <- state.if_counter + 1;
         emit_node state cond;
+        emit_val state (RawOp Opcodes.OP_not);
         emit_val state (RawOp Opcodes.OP_tjmp);
         add_effect (-1) state;
         emit_val state (LabelRef (gen_label "ifend" counter));

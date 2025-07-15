@@ -33,6 +33,7 @@ type token =
     | Or of token_pos
     | Yield of token_pos
     | Dim of token_pos
+    | SemiStmt of token_pos
 
 val lexer_init : string -> token list
 (** Tokenize source code, into list of tokens *)

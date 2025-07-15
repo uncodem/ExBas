@@ -33,6 +33,7 @@ type token =
     | Or of token_pos
     | Yield of token_pos
     | Dim of token_pos
+    | SemiStmt of token_pos
 
 type lexerstate = {
     code : string;
@@ -68,7 +69,7 @@ let is_oper = function
     | _ -> false
 
 let is_special_char = function
-    | '(' | ')' | ',' | ':' -> true
+    | '(' | ')' | ',' | ':' | '@' -> true
     | _ -> false
 
 let token_of_special_char { line_number; _ } = function
@@ -76,6 +77,7 @@ let token_of_special_char { line_number; _ } = function
     | ')' -> Some (RParen line_number)
     | ',' -> Some (Comma line_number)
     | ':' -> Some (Colon line_number)
+    | '@' -> Some (SemiStmt line_number)
     | _ -> None
 
 let convert_token t =
@@ -137,6 +139,7 @@ let print_token = function
     | Yield _ -> print_endline "Yield"
     | Dim _ -> print_endline "Dim"
     | ElseIf _ -> print_endline "ElseIf"
+    | SemiStmt _ -> print_endline "#"
 
 let errorstring_of_token = function
     | Ident (s, line) ->
@@ -175,6 +178,7 @@ let errorstring_of_token = function
     | Yield line -> "Yield of line " ^ string_of_int line
     | Dim line -> "Dim of line " ^ string_of_int line
     | ElseIf line -> "ElseIf of line " ^ string_of_int line
+    | SemiStmt line -> "SemiStmt # of line " ^ string_of_int line
 
 let add_token_advance state t = add_token state t |> lexer_advance
 

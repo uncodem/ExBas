@@ -621,7 +621,6 @@ let builtins =
 
 let checker_init ast =
     let* collected = collect_labels ast [] in
-    List.iter print_endline collected;
     let state =
         {
           current_line = 0;
