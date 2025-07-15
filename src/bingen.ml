@@ -19,7 +19,7 @@ let rec emit_binary labels acc pos = function
         let l = x land 0xff in
         emit_binary labels (h :: l :: acc) (pos+2) rest 
     | Emitter.LabelRef name :: rest ->
-        let offset = (Hashtbl.find labels name)-pos in
+        let offset = (Hashtbl.find labels name)-(pos+2) in
         let h = (offset lsr 8) land 0xff in 
         let l = offset land 0xff in
         emit_binary labels (h :: l :: acc) (pos+2) rest
