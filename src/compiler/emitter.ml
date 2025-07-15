@@ -5,14 +5,12 @@ type emit_me =
     | LabelDef of string
     | LabelRef of string
     | NoEmit
-[@@deriving show]
 
 type const_value =
     | StrConst of string
     | IntConst of int
     | BoolConst of bool
     | FloatConst of float
-[@@deriving show]
 
 type func_def =
     | Subroutine of string list * emit_me list
