@@ -126,27 +126,6 @@ let rec get_vname = function
     | Parser.Assign (left, _, _) -> get_vname left
     | _ -> assert false
 
-let emitter_init () = 
-    let ret = {
-        buffer = [];
-        const_counter = 0; 
-        const_pool = Hashtbl.create 32; 
-        current_scope = 0; 
-        vars = [Hashtbl.create 32]; 
-        var_counter = [0];
-        stack_effects = [0];
-        block_counter = 0;
-        block_stack = [];
-        if_counter = 0;
-        while_counter = 0;
-        for_counter = 0; 
-        func_table = Hashtbl.create 32;
-    } in
-    let register_intrinsic = fun (name, data, x) -> Hashtbl.add ret.func_table name (Intrinsic (data, x)) in
-    List.iter register_intrinsic intrinsics;
-    def_var ret "@stash";
-    ret
-
 let gen_label prefix id = "@" ^ prefix ^ string_of_int id
 
 let constant_of_node = function
@@ -475,8 +454,42 @@ and emit_funcdef state = function
             let global_code = state.buffer in
             let param_names = List.map fst params in
             state.buffer <- [];
+            emit_val state (LabelDef ("@" ^ name));
             emit_funcdef_body state param_names body;
-            Hashtbl.add state.func_table name (Subroutine (param_names, state.buffer));
+            Hashtbl.add state.func_table name (Subroutine (param_names, List.rev state.buffer));
             state.buffer <- global_code
         | _ -> assert false
 
+let collect_bodies state = 
+    let aux _ entry acc = 
+        match entry with
+        | Subroutine (_, body) -> acc @ body
+        | Intrinsic _ -> acc
+    in
+    Hashtbl.fold aux state.func_table []
+
+let emitter_init () = 
+    let ret = {
+        buffer = [];
+        const_counter = 0; 
+        const_pool = Hashtbl.create 32; 
+        current_scope = 0; 
+        vars = [Hashtbl.create 32]; 
+        var_counter = [0];
+        stack_effects = [0];
+        block_counter = 0;
+        block_stack = [];
+        if_counter = 0;
+        while_counter = 0;
+        for_counter = 0; 
+        func_table = Hashtbl.create 32;
+    } in
+    let register_intrinsic = fun (name, data, x) -> Hashtbl.add ret.func_table name (Intrinsic (data, x)) in
+    List.iter register_intrinsic intrinsics;
+    def_var ret "@stash";
+    ret
+
+let emitter_emit root = 
+    let state = emitter_init () in
+    emit_node state root;
+    (List.rev state.buffer) @ (collect_bodies state)

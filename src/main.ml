@@ -19,9 +19,7 @@ let () =
         print_endline (Parser.string_of_ast a);
         match Checker.checker_init a with
         | Ok _ -> 
-            let e_state = Emitter.emitter_init () in 
-            Emitter.emit_node e_state a;
-            List.iter (fun x -> print_endline (Emitter.show_emit_me x)) (List.rev e_state.buffer)
+            List.iter (fun x -> print_endline (Emitter.show_emit_me x)) (Emitter.emitter_emit a)
         | Error e -> Checker.checker_report e)
     | Error e -> Parser.parser_report e
 
