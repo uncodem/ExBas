@@ -1,2 +1,2 @@
-# ValsVM
-A simple stack-based bytecode VM written in Zig.
+# ExBas
+A simple BASIC interpreter written in OCaml and Zig.
