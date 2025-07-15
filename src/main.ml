@@ -24,12 +24,13 @@ let () =
         match Checker.checker_init a with
         | Ok _ ->
             let emitted = Emitter.emitter_emit a in
-            let gen = Bingen.bingen_init emitted in
+            let labels = Bingen.resolve_labels emitted in
+            let raw = Bingen.emit_binary labels [] 0 emitted in
             List.iter
               (fun x -> print_endline (Emitter.show_emit_me x))
               emitted;
-            Bingen.resolve_labels gen;
-            print_labels gen.labels
+            print_labels labels;
+            List.iter (fun x -> string_of_int x |> print_endline) raw 
             
         | Error e -> Checker.checker_report e)
     | Error e -> Parser.parser_report e

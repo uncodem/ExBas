@@ -614,7 +614,7 @@ let builtins =
       ("int2str", T_string, [ T_int ]); ("int2float", T_float, [ T_int ]);
       ("float2str", T_string, [ T_float ]); ("float2int", T_int, [ T_float ]);
       ("any2int", T_int, [ T_any ]); ("any2float", T_float, [ T_any ]);
-      ("any2str", T_string, [ T_any ]); ("size", T_any, [ T_int ]);
+      ("any2str", T_string, [ T_any ]); ("size", T_int, [ T_any ]);
       ("print", T_none, [ T_any ]); ("input", T_string, []);
       ("any", T_any, [ T_any ]);
     ]
