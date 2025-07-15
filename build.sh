@@ -11,6 +11,7 @@ echo "Building compiler..."
 
 dune build src/compiler/main.exe
 mkdir -p bin
+chmod u+w _build/default/src/compiler/main.exe
 cp _build/default/src/compiler/main.exe bin/exbcc
 
 echo "Building VM..."
