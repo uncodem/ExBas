@@ -51,5 +51,5 @@ let emit_final emitted const_pool =
     let labels = calc_labels emitted in
     let binary = emit_binary labels [] 0 emitted in
     let header = [0xef; 0xbe; 0xad; 0xde] @ int_to_le_bytes (List.length binary) 4 in
-    header @ binary @ emit_consts const_pool
+    header @ binary @ (emit_consts const_pool)
 

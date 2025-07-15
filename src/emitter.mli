@@ -41,5 +41,5 @@ val emit_node : emitter_state -> Parser.ast_node -> unit
 val show_emit_me : emit_me -> string
 (** From deriving show, display emit_me into string *)
 
-val emitter_emit : Parser.ast_node -> emit_me list
+val emitter_emit : Parser.ast_node -> emit_me list * const_value list
 (** Automatically initialize emitter and execute pass 1 and 2. *)

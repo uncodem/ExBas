@@ -502,4 +502,5 @@ let emitter_init () =
 let emitter_emit root =
     let state = emitter_init () in
     emit_node state root;
-    List.rev state.buffer @ collect_bodies state
+    let pool = Hashtbl.to_seq state.const_pool |> List.of_seq in
+    (List.rev state.buffer @ collect_bodies state, List.map fst pool)
