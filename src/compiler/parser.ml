@@ -640,8 +640,8 @@ and parse_stmts st blocked =
 
 and parse_semi_stmt st =
     match peek st with
-    | None -> Error UnexpectedEOF 
-    | Some Lexer.SemiStmt _ -> 
+    | None -> Error UnexpectedEOF
+    | Some (Lexer.SemiStmt _) ->
         let _, st' = next st in
         parse_stmt st'
     | _ -> parse_expr st

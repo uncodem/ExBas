@@ -16,7 +16,7 @@ pub const VmCtx = struct {
 
     pub fn pop(self: VmCtx) !*Value {
         return try self.vm_stack.pop();
-    } 
+    }
 
     pub fn release(self: VmCtx, val: *Value) void {
         if (val.release()) self.allocator.destroy(val);
@@ -57,8 +57,8 @@ pub fn print(ctx: VmCtx) !void {
         .Int => |x| try stdout.print("{d}\n", .{x}),
         .Float => |x| try stdout.print("{d}\n", .{x}),
         .String => |x| try stdout.print("{s}\n", .{x}),
-        .Bool => try stdout.print("{s}\n", .{ if (v.data.Bool) "T" else "F" }),
-        .Array => return error.InvalidDataType
+        .Bool => try stdout.print("{s}\n", .{if (v.data.Bool) "T" else "F"}),
+        .Array => return error.InvalidDataType,
     }
 }
 
@@ -67,6 +67,5 @@ pub fn input(ctx: VmCtx) !void {
     var buffer = std.ArrayList(u8).init(ctx.allocator);
     try stdin.streamUntilDelimiter(buffer.writer(), '\n', null);
     const strslice = try buffer.toOwnedSlice();
-    try ctx.push(try ctx.makeValue(.{.String = strslice}));
+    try ctx.push(try ctx.makeValue(.{ .String = strslice }));
 }
-

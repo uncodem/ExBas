@@ -68,7 +68,7 @@ pub fn main() !void {
         try debug.dumpConstants(writer, program);
         try writer.print("\nCode:\n", .{});
         try debug.dumpCode(writer, program);
-    }  else {
+    } else {
         print_usage(prog_path, command);
     }
 }

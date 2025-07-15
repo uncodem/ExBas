@@ -170,7 +170,7 @@ let get_const state v =
     | None ->
         let indx = state.const_counter in
         Hashtbl.add state.const_pool k indx;
-        state.const_history <- k :: state.const_history;    
+        state.const_history <- k :: state.const_history;
         state.const_counter <- indx + 1;
         indx
 
@@ -373,10 +373,7 @@ and emit_dim state = function
         else (
           emit_val state (RawOp Opcodes.OP_createarray_nd);
           emit_val state (RawValB depth);
-          List.iter
-            (fun x ->
-              emit_val state (RawValS x))
-            sizes);
+          List.iter (fun x -> emit_val state (RawValS x)) sizes);
         emit_val state (RawOp Opcodes.OP_defvar)
     | _ -> assert false
 
@@ -490,7 +487,7 @@ let emitter_init () =
           while_counter = 0;
           for_counter = 0;
           func_table = Hashtbl.create 32;
-          const_history = []
+          const_history = [];
         }
     in
     let register_intrinsic =

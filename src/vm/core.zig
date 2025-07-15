@@ -16,7 +16,7 @@ const VmOpcode = opcodes.VmOpcode;
 const ValueStack = Stack(*Value);
 
 const VmCtx = interface.VmCtx;
-const NativeFunc = *const fn(VmCtx) anyerror!void;
+const NativeFunc = *const fn (VmCtx) anyerror!void;
 
 const expectError = std.testing.expectError;
 const expect = std.testing.expect;
@@ -150,7 +150,10 @@ pub const Vm = struct {
     fn binOp(self: *Vm, op: VmOpcode) !*Value {
         const b = try self.pop();
         const a = try self.pop();
-        defer { self.release(b); self.release(a); }
+        defer {
+            self.release(b);
+            self.release(a);
+        }
 
         if (a.kind() != b.kind()) return error.MismatchedTypes;
         if (a.kind() == .Array) return error.InvalidDataType;
@@ -163,20 +166,20 @@ pub const Vm = struct {
                 .String => try a.concat(b.*, self.allocator),
                 .Int => try a.arithmeticOp(b.*, op, i32),
                 .Float => try a.arithmeticOp(b.*, op, f32),
-                else => return error.MismatchedTypes
+                else => return error.MismatchedTypes,
             },
             .OP_SUB, .OP_MUL, .OP_DIV, .OP_MOD => switch (a.kind()) {
                 .Int => try a.arithmeticOp(b.*, op, i32),
                 .Float => try a.arithmeticOp(b.*, op, f32),
-                else => return error.MismatchedTypes
+                else => return error.MismatchedTypes,
             },
             .OP_MORE, .OP_LESS, .OP_EQMORE, .OP_EQLESS => switch (a.kind()) {
                 .Int => try a.comparisonOp(b.*, op, i32),
                 .Float => try a.arithmeticOp(b.*, op, f32),
-                else => return error.MismatchedTypes
+                else => return error.MismatchedTypes,
             },
             .OP_AND, .OP_OR => try a.logicOp(b.*, op),
-            else => unreachable
+            else => unreachable,
         };
         ret.allocator = self.allocator;
         ret.refcount = 1;
@@ -231,11 +234,7 @@ pub const Vm = struct {
     fn reserveArray(self: *Vm, size: u16) !*Value {
         const data = vals.ValueData{ .Array = try self.allocator.alloc(Value, @intCast(size)) };
         for (data.Array) |*x| {
-            x.* = Value{
-                .allocator = self.allocator,
-                .data = .{.Int = 0},
-                .size = 4
-            };
+            x.* = Value{ .allocator = self.allocator, .data = .{ .Int = 0 }, .size = 4 };
         }
         return self.makeValue(data);
     }
@@ -254,13 +253,13 @@ pub const Vm = struct {
         if (indices.len == 0) return error.MalformedCode;
         var current = root;
 
-        for (indices[0..indices.len-1]) |i| {
+        for (indices[0 .. indices.len - 1]) |i| {
             if (current.kind() != .Array) return error.MismatchedTypes;
             current = &current.data.Array[i];
         }
 
         if (current.kind() != .Array) return error.MismatchedTypes;
-        try current.setAt(try v.copy(), indices[indices.len-1]);
+        try current.setAt(try v.copy(), indices[indices.len - 1]);
     }
 
     pub fn step(self: *Vm, writer: anytype) !bool {
@@ -273,10 +272,7 @@ pub const Vm = struct {
             },
 
             .OP_NATIVE => {
-                const ctx = VmCtx{
-                    .allocator = self.allocator,
-                    .vm_stack = &self.stack
-                };
+                const ctx = VmCtx{ .allocator = self.allocator, .vm_stack = &self.stack };
                 const func_idx = try self.fetch();
                 if (func_idx >= self.natives.items.len) return error.MalformedCode;
                 try self.natives.items[func_idx](ctx);
@@ -430,14 +426,12 @@ pub const Vm = struct {
 
             .OP_POPVAR => try self.setvar(try self.pop(), try self.fetch(), try self.fetch()),
 
-            .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_MOD, 
-            .OP_LESS, .OP_MORE, .OP_EQMORE, .OP_EQLESS, 
-            .OP_EQL, .OP_NEQL, .OP_AND, .OP_OR => try self.stack.push( try self.binOp(opc) ),
+            .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_MOD, .OP_LESS, .OP_MORE, .OP_EQMORE, .OP_EQLESS, .OP_EQL, .OP_NEQL, .OP_AND, .OP_OR => try self.stack.push(try self.binOp(opc)),
 
             .OP_NOT => {
                 const old_v = try self.popExpect(.Bool);
                 defer self.release(old_v);
-                const new_v = try self.makeValue(.{.Bool = !old_v.data.Bool});
+                const new_v = try self.makeValue(.{ .Bool = !old_v.data.Bool });
                 try self.stack.push(new_v);
             },
 
@@ -445,9 +439,9 @@ pub const Vm = struct {
                 const old_v = try self.pop();
                 defer self.release(old_v);
                 const payload: vals.ValueData = switch (old_v.data) {
-                    .Int => |x| .{ .Int = x * -1 } ,
-                    .Float => |x| .{ .Float = x * -1.0},
-                    else => return error.InvalidDataType
+                    .Int => |x| .{ .Int = x * -1 },
+                    .Float => |x| .{ .Float = x * -1.0 },
+                    else => return error.InvalidDataType,
                 };
                 const new_v = try self.makeValue(payload);
                 try self.stack.push(new_v);
@@ -500,7 +494,7 @@ pub const TestVM = struct {
 };
 
 pub fn makeTestVm(allocator: std.mem.Allocator, code: []const u8) !TestVM {
-    const const_data = [_]u8{0, 36, 0x00, 0x00, 0x00, 0, 33, 0x00, 0x00, 0x00, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00};
+    const const_data = [_]u8{ 0, 36, 0x00, 0x00, 0x00, 0, 33, 0x00, 0x00, 0x00, 1, 0x41, 0x42, 0x43, 0x44, 0x45, 0x00 };
     const program = try allocator.create(Program);
     program.* = try Program.init(allocator, &const_data, code);
 
@@ -516,8 +510,11 @@ test "src/core.zig jump" {
     const res = try makeTestVm(std.testing.allocator, &dummy_prog);
     var vm = res.vm;
     defer vm.deinit();
-    defer { res.program.deinit(); res.allocator.destroy(res.program); }
-    
+    defer {
+        res.program.deinit();
+        res.allocator.destroy(res.program);
+    }
+
     const err = vm.jump(-1); // pc = 0; pc -> -1 MalformedCode
     try expectError(error.MalformedCode, err);
     try vm.jump(1); // pc = 0; pc -> 1 Noerr
@@ -533,7 +530,10 @@ test "src/core.zig fetches" {
     const res = try makeTestVm(std.testing.allocator, &dummy_prog);
     var vm = res.vm;
     defer vm.deinit();
-    defer { res.program.deinit(); res.allocator.destroy(res.program); }
+    defer {
+        res.program.deinit();
+        res.allocator.destroy(res.program);
+    }
 
     try expect(try vm.fetch16(u16) == 0xaabb);
     try expect(try vm.fetch16(i16) == -1);
@@ -547,13 +547,15 @@ test "src/core.zig deinit_scope" {
     const res = try makeTestVm(std.testing.allocator, &dummy_prog);
     var vm = res.vm;
     defer vm.deinit();
-    defer { res.program.deinit(); res.allocator.destroy(res.program); }
+    defer {
+        res.program.deinit();
+        res.allocator.destroy(res.program);
+    }
 
     try vm.new_scope();
     try vm.deinit_scope();
     const err = vm.deinit_scope(); // Try to deinit global scope
     try expectError(error.MalformedCode, err);
-
 }
 
 test "src/core.zig vars" {
@@ -561,7 +563,10 @@ test "src/core.zig vars" {
     const res = try makeTestVm(std.testing.allocator, &dummy_prog);
     var vm = res.vm;
     defer vm.deinit();
-    defer { res.program.deinit(); res.allocator.destroy(res.program); }
+    defer {
+        res.program.deinit();
+        res.allocator.destroy(res.program);
+    }
 
     const val = vm.constants[0];
 
@@ -569,14 +574,13 @@ test "src/core.zig vars" {
 
     const vcopy = try val.alloc_copy(std.testing.allocator);
     try vm.setvar(vcopy, 0, 0);
-    try expect( try vm.getvar(0, 0) == vcopy );
+    try expect(try vm.getvar(0, 0) == vcopy);
     try vm.new_scope();
     try expectError(error.MalformedCode, vm.getvar(3, 0));
     try expectError(error.UndefinedVariable, vm.getvar(1, 1));
     // These failing getvar calls test setvar calls because they use identical logic for resolving variables.
     try vm.deinit_scope();
 }
-
 
 test "src/core.zig getND, setND usage" {
     const dummy_prog = [_]u8{@intFromEnum(VmOpcode.OP_RET)} ** 10;
@@ -588,14 +592,13 @@ test "src/core.zig getND, setND usage" {
         res.allocator.destroy(res.program);
     }
 
-    const arr = try vm.buildArrays(&[_]u16{3,2});
+    const arr = try vm.buildArrays(&[_]u16{ 3, 2 });
     defer vm.release(arr);
 
-    const val = try vm.makeValue(.{.Int = 123});
+    const val = try vm.makeValue(.{ .Int = 123 });
     defer vm.release(val);
 
-    try vm.setND(arr, &[_]u16{1,0}, val);
-    const ptr = try vm.getND(arr, &[_]u16{1,0});
+    try vm.setND(arr, &[_]u16{ 1, 0 }, val);
+    const ptr = try vm.getND(arr, &[_]u16{ 1, 0 });
     try expect(ptr.data.Int == 123);
 }
-

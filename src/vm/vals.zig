@@ -155,12 +155,12 @@ pub const Value = struct {
             },
         };
 
-        ret.data = switch(self.data) {
+        ret.data = switch (self.data) {
             .String => |x| strblk: {
                 var buffer = std.ArrayList(u8).init(allocator);
                 const writer = buffer.writer();
-                try writer.print("{s}{s}", .{x, y.data.String});
-                break :strblk .{ .String = try buffer.toOwnedSlice() } ;
+                try writer.print("{s}{s}", .{ x, y.data.String });
+                break :strblk .{ .String = try buffer.toOwnedSlice() };
             },
             else => unreachable,
         };
@@ -176,23 +176,20 @@ pub const Value = struct {
         const a = if (T == i32) self.data.Int else self.data.Float;
         const b = if (T == i32) y.data.Int else y.data.Float;
 
-        const c: T = switch(op) {
-            .OP_ADD => a+b,
-            .OP_SUB => a-b,
-            .OP_MUL => a*b,
-            .OP_DIV => if (T == i32) @divFloor(a, b) else a/b,
+        const c: T = switch (op) {
+            .OP_ADD => a + b,
+            .OP_SUB => a - b,
+            .OP_MUL => a * b,
+            .OP_DIV => if (T == i32) @divFloor(a, b) else a / b,
             .OP_MOD => @rem(a, b),
             else => return error.InvalidOperation,
         };
 
-        return Value{
-            .size = 4,
-            .data = switch(T) {
-                i32 => .{ .Int = c },
-                f32 => .{ .Float = c },
-                else => unreachable
-            }
-        };
+        return Value{ .size = 4, .data = switch (T) {
+            i32 => .{ .Int = c },
+            f32 => .{ .Float = c },
+            else => unreachable,
+        } };
     }
 
     pub fn comparisonOp(self: *Value, y: Value, op: VmOp, comptime T: type) !Value {
@@ -203,17 +200,14 @@ pub const Value = struct {
         const b = if (T == i32) y.data.Int else y.data.Float;
 
         const c: bool = switch (op) {
-            .OP_MORE => a>b,
-            .OP_LESS => a<b,
-            .OP_EQMORE => a>=b,
-            .OP_EQLESS => a<=b,
+            .OP_MORE => a > b,
+            .OP_LESS => a < b,
+            .OP_EQMORE => a >= b,
+            .OP_EQLESS => a <= b,
             else => return error.InvalidOperation,
         };
 
-        return Value{
-            .size = 1,
-            .data = .{ .Bool = c }
-        };
+        return Value{ .size = 1, .data = .{ .Bool = c } };
     }
 
     pub fn logicOp(self: *Value, y: Value, op: VmOp) !Value {
@@ -226,20 +220,20 @@ pub const Value = struct {
             .data = .{ .Bool = switch (op) {
                 .OP_AND => a and b,
                 .OP_OR => a or b,
-                else => return error.InvalidOperation
-            }},
+                else => return error.InvalidOperation,
+            } },
         };
     }
 
     pub fn eql(self: *Value, y: Value) !bool {
         if (self.kind() == .Array or y.kind() == .Array) return error.InvalidDataType;
         if (self.kind() != y.kind()) return false;
-        return switch(self.data) {
+        return switch (self.data) {
             .Int => |x| x == y.data.Int,
             .Float => |x| x == y.data.Float,
             .Bool => |x| x == y.data.Bool,
             .String => |x| std.mem.eql(u8, x, y.data.String),
-            else => return error.InvalidDataType 
+            else => return error.InvalidDataType,
         };
     }
 
@@ -477,26 +471,26 @@ test "src/vals.zig casting" {
 }
 
 test "src/vals.zig eql" {
-    const byte_data = [_]u8{1, 65, 66, 67,0, 1, 68, 69, 70, 0, 0, 0x42, 0x00, 0x00, 0x00};
+    const byte_data = [_]u8{ 1, 65, 66, 67, 0, 1, 68, 69, 70, 0, 0, 0x42, 0x00, 0x00, 0x00 };
     const values = try readValues(std.testing.allocator, &byte_data);
-    defer { 
+    defer {
         for (values.items) |v| {
             v.deinit();
         }
-        values.deinit(); 
+        values.deinit();
     }
     try expect(!(try values.items[0].eql(values.items[1])));
     try expect(!(try values.items[0].eql(values.items[2])));
 }
 
 test "src/vals.zig arithmetic" {
-    const byte_data = [_]u8{0, 0x42, 0x00, 0x00, 0x00, 0, 0x03, 0x00, 0x00, 0x00, 3, 86, 14, 73, 64};
+    const byte_data = [_]u8{ 0, 0x42, 0x00, 0x00, 0x00, 0, 0x03, 0x00, 0x00, 0x00, 3, 86, 14, 73, 64 };
     const values = try readValues(std.testing.allocator, &byte_data);
-    defer { 
+    defer {
         for (values.items) |v| {
             v.deinit();
         }
-        values.deinit(); 
+        values.deinit();
     }
 
     const success = try values.items[0].arithmeticOp(values.items[1], .OP_ADD, i32);
@@ -507,13 +501,13 @@ test "src/vals.zig arithmetic" {
 }
 
 test "src/vals.zig comparison" {
-    const byte_data = [_]u8{0, 0x42, 0x00, 0x00, 0x00, 0, 0x03, 0x00, 0x00, 0x00, 3, 86, 14, 73, 64};
+    const byte_data = [_]u8{ 0, 0x42, 0x00, 0x00, 0x00, 0, 0x03, 0x00, 0x00, 0x00, 3, 86, 14, 73, 64 };
     const values = try readValues(std.testing.allocator, &byte_data);
-    defer { 
+    defer {
         for (values.items) |v| {
             v.deinit();
         }
-        values.deinit(); 
+        values.deinit();
     }
 
     const success = try values.items[0].comparisonOp(values.items[1], .OP_MORE, i32);
@@ -524,13 +518,13 @@ test "src/vals.zig comparison" {
 }
 
 test "src/vals.zig logic" {
-    const byte_data = [_]u8{2, 1, 2, 0, 2, 1};
+    const byte_data = [_]u8{ 2, 1, 2, 0, 2, 1 };
     const values = try readValues(std.testing.allocator, &byte_data);
-    defer { 
+    defer {
         for (values.items) |v| {
             v.deinit();
         }
-        values.deinit(); 
+        values.deinit();
     }
 
     const op_or = try values.items[0].logicOp(values.items[1], .OP_OR);
