@@ -4,9 +4,9 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const exe_mod = b.createModule(.{ .root_source_file = b.path("src/main.zig"), .target = target, .optimize = optimize });
+    const exe_mod = b.createModule(.{ .root_source_file = b.path("src/vm/main.zig"), .target = target, .optimize = optimize });
 
-    const exe = b.addExecutable(.{ .name = "vals", .root_module = exe_mod });
+    const exe = b.addExecutable(.{ .name = "exbvm", .root_module = exe_mod });
 
     // exe.linkLibC();
     b.installArtifact(exe);
@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) !void {
     run_step.dependOn(&run_exe.step);
 
     const exe_tests = b.addTest(.{
-        .root_source_file = b.path("src/tests.zig"),
+        .root_source_file = b.path("src/vm/tests.zig"),
         .optimize = optimize,
         .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },
         .target = target,
