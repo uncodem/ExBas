@@ -1,6 +1,7 @@
 type emit_me =
     | RawOp of Opcodes.exbvm_opcode
-    | RawVal of int
+    | RawValB of int
+    | RawValS of int
     | LabelDef of string
     | LabelRef of string
     | NoEmit
@@ -19,15 +20,15 @@ type func_def =
 
 let intrinsics =
     [
-      ("print", [ RawOp Opcodes.OP_native; RawVal 0 ], -1);
-      ("input", [ RawOp Opcodes.OP_native; RawVal 1 ], 1);
+      ("print", [ RawOp Opcodes.OP_native; RawValB 0 ], -1);
+      ("input", [ RawOp Opcodes.OP_native; RawValB 1 ], 1);
       ("size", [ RawOp Opcodes.OP_size ], 1);
-      ("int2str", [ RawOp Opcodes.OP_cast; RawVal 1 ], 0);
-      ("float2str", [ RawOp Opcodes.OP_cast; RawVal 1 ], 0);
-      ("int2float", [ RawOp Opcodes.OP_cast; RawVal 3 ], 0);
-      ("str2float", [ RawOp Opcodes.OP_cast; RawVal 3 ], 0);
-      ("str2int", [ RawOp Opcodes.OP_cast; RawVal 0 ], 0);
-      ("float2int", [ RawOp Opcodes.OP_cast; RawVal 0 ], 0); ("any", [], 0);
+      ("int2str", [ RawOp Opcodes.OP_cast; RawValB 1 ], 0);
+      ("float2str", [ RawOp Opcodes.OP_cast; RawValB 1 ], 0);
+      ("int2float", [ RawOp Opcodes.OP_cast; RawValB 3 ], 0);
+      ("str2float", [ RawOp Opcodes.OP_cast; RawValB 3 ], 0);
+      ("str2int", [ RawOp Opcodes.OP_cast; RawValB 0 ], 0);
+      ("float2int", [ RawOp Opcodes.OP_cast; RawValB 0 ], 0); ("any", [], 0);
       ("str2any", [], 0); ("int2any", [], 0); ("float2any", [], 0);
     ]
 
@@ -147,14 +148,14 @@ let emit_stash_value state =
     let stash_idx, global_idx = Option.get (find_var state.vars "@stash" 0) in
     emit_val state (RawOp Opcodes.OP_dup);
     emit_val state (RawOp Opcodes.OP_popvar);
-    emit_val state (RawVal global_idx);
-    emit_val state (RawVal stash_idx)
+    emit_val state (RawValB global_idx);
+    emit_val state (RawValB stash_idx)
 
 let emit_load_stash state =
     let stash_idx, global_idx = Option.get (find_var state.vars "@stash" 0) in
     emit_val state (RawOp Opcodes.OP_pushvar);
-    emit_val state (RawVal global_idx);
-    emit_val state (RawVal stash_idx);
+    emit_val state (RawValB global_idx);
+    emit_val state (RawValB stash_idx);
     add_effect 1 state
 
 let drop_effect state =
@@ -178,7 +179,7 @@ let rec emit_node state node =
     | Parser.Number _ | Parser.String _ | Parser.Bool _ | Parser.Float _ ->
         let indx = get_const state node in
         emit_val state (RawOp Opcodes.OP_const);
-        emit_val state (RawVal indx);
+        emit_val state (RawValB indx);
         add_effect 1 state
     | Parser.Binary (op, left, right) ->
         emit_node state left;
@@ -199,8 +200,8 @@ let rec emit_node state node =
     | Parser.Var vname ->
         let vindex, scope_idx = Option.get (find_var state.vars vname 0) in
         emit_val state (RawOp Opcodes.OP_pushvar);
-        emit_val state (RawVal scope_idx);
-        emit_val state (RawVal vindex);
+        emit_val state (RawValB scope_idx);
+        emit_val state (RawValB vindex);
         add_effect 1 state
     | Parser.Index _ ->
         let vnode, indices = follow_index_chain [] node in
@@ -210,7 +211,7 @@ let rec emit_node state node =
         if depth = 1 then emit_val state (RawOp Opcodes.OP_rget)
         else (
           emit_val state (RawOp Opcodes.OP_rget_nd);
-          emit_val state (RawVal depth))
+          emit_val state (RawValB depth))
     | Parser.Assign _ -> emit_assign state node
     | Parser.Goto (lbl, _) ->
         emit_val state (RawOp Opcodes.OP_jmp);
@@ -282,8 +283,8 @@ and emit_assign state = function
         if Option.is_none isstmt_opt then emit_val state (RawOp Opcodes.OP_dup)
         else add_effect (-1) state;
         emit_val state (RawOp Opcodes.OP_popvar);
-        emit_val state (RawVal count);
-        emit_val state (RawVal pos)
+        emit_val state (RawValB count);
+        emit_val state (RawValB pos)
     | Parser.Assign ((Parser.Index _ as left), right, isstmt_opt) ->
         let vnode, indices = follow_index_chain [] left in
         let depth = List.length indices in
@@ -299,7 +300,7 @@ and emit_assign state = function
         if depth = 1 then emit_val state (RawOp Opcodes.OP_rset)
         else (
           emit_val state (RawOp Opcodes.OP_rset_nd);
-          emit_val state (RawVal depth));
+          emit_val state (RawValB depth));
         add_effect (-depth - 2) state;
         if is_expr then emit_load_stash state else ()
     | _ -> assert false
@@ -367,15 +368,13 @@ and emit_dim state = function
         def_var state vname;
         if depth = 1 then (
           emit_val state (RawOp Opcodes.OP_createarray);
-          emit_val state (RawVal (top sizes));
-          emit_val state NoEmit)
+          emit_val state (RawValS (top sizes)))
         else (
           emit_val state (RawOp Opcodes.OP_createarray_nd);
-          emit_val state (RawVal depth);
+          emit_val state (RawValB depth);
           List.iter
             (fun x ->
-              emit_val state (RawVal x);
-              emit_val state NoEmit)
+              emit_val state (RawValS x))
             sizes);
         emit_val state (RawOp Opcodes.OP_defvar)
     | _ -> assert false

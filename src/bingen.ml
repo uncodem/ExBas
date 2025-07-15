@@ -17,6 +17,7 @@ let resolve_labels state =
         | Emitter.LabelDef label ->
             Hashtbl.add state.labels label acc;
             acc
+        | Emitter.RawValS _ -> acc+2
         | _ -> acc+1
     in
     let _ = List.fold_left aux 0 state.emit_buffer in ()

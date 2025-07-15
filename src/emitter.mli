@@ -1,6 +1,7 @@
 type emit_me =
     | RawOp of Opcodes.exbvm_opcode
-    | RawVal of int
+    | RawValB of int
+    | RawValS of int
     | LabelDef of string
     | LabelRef of string
     | NoEmit
