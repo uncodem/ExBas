@@ -11,20 +11,17 @@ let read_lines fname =
 
 let () =
     let tokens = Lexer.lexer_init (read_lines "test.txt") in
-    List.iter Lexer.print_token tokens;
-    print_endline "---";
     let res = tokens |> Parser.parser_init |> Parser.parse_all in
     match res with
     | Ok a -> (
-        print_endline (Parser.string_of_ast a);
         match Checker.checker_init a with
         | Ok _ ->
             let (emitted, const_pool) = Emitter.emitter_emit a in
             let raw = Bingen.emit_final emitted const_pool in
-            List.iter
-              (fun x -> print_endline (Emitter.show_emit_me x))
-              emitted;
-            List.iter (fun x -> string_of_int x |> print_endline) raw 
-            
+            let oc = open_out_bin "out.bin" in
+            List.iter (fun x -> Emitter.show_emit_me x |> print_endline) emitted;
+            List.iter (output_byte oc) raw;
+            close_out oc
+            (* List.iter (fun x -> string_of_int x |> print_endline) raw *)
         | Error e -> Checker.checker_report e)
     | Error e -> Parser.parser_report e

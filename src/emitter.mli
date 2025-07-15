@@ -20,6 +20,7 @@ type emitter_state = {
     mutable buffer : emit_me list;
     mutable const_counter : int;
     const_pool : (const_value, int) Hashtbl.t;
+    mutable const_history : const_value list;
     mutable current_scope : int;
     mutable var_counter : int list;
     mutable vars : (string, int) Hashtbl.t list;

@@ -36,6 +36,7 @@ type emitter_state = {
     mutable buffer : emit_me list;
     mutable const_counter : int;
     const_pool : (const_value, int) Hashtbl.t;
+    mutable const_history : const_value list;
     mutable current_scope : int;
     mutable var_counter : int list;
     mutable vars : (string, int) Hashtbl.t list;
@@ -171,6 +172,7 @@ let get_const state v =
     | None ->
         let indx = state.const_counter in
         Hashtbl.add state.const_pool k indx;
+        state.const_history <- k :: state.const_history;    
         state.const_counter <- indx + 1;
         indx
 
@@ -489,18 +491,23 @@ let emitter_init () =
           while_counter = 0;
           for_counter = 0;
           func_table = Hashtbl.create 32;
+          const_history = []
         }
     in
     let register_intrinsic =
        fun (name, data, x) ->
         Hashtbl.add ret.func_table name (Intrinsic (data, x))
     in
-    List.iter register_intrinsic intrinsics;
+    let zero_const_idx = get_const ret (Parser.Number 0) in
     def_var ret "@stash";
+    emit_val ret (RawOp Opcodes.OP_const);
+    emit_val ret (RawValB zero_const_idx);
+    emit_val ret (RawOp Opcodes.OP_defvar);
+    List.iter register_intrinsic intrinsics;
     ret
 
 let emitter_emit root =
     let state = emitter_init () in
     emit_node state root;
-    let pool = Hashtbl.to_seq state.const_pool |> List.of_seq in
-    (List.rev state.buffer @ collect_bodies state, List.map fst pool)
+    let pool = List.rev state.const_history in
+    (List.rev state.buffer @ collect_bodies state, pool)
