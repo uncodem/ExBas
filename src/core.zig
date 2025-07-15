@@ -61,16 +61,14 @@ pub const Vm = struct {
     pub fn deinit(self: *Vm) void {
         for (self.scopes.items) |scope| {
             for (scope.items) |variable| {
-                variable.deinit();
-                self.allocator.destroy(variable);
+                self.release(variable);
             }
             scope.deinit();
         }
         self.scopes.deinit();
 
         for (self.stack.data[0..self.stack.sp]) |item| {
-            item.deinit();
-            self.allocator.destroy(item);
+            self.release(item);
         }
 
         self.natives.deinit();
@@ -180,6 +178,7 @@ pub const Vm = struct {
             .OP_AND, .OP_OR => try a.logicOp(b.*, op),
             else => unreachable
         };
+        ret.allocator = self.allocator;
         ret.refcount = 1;
 
         return ret;
