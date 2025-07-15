@@ -2,3 +2,5 @@
 zig-out/
 *.bin
 *.py
+_build/
+test.txt
