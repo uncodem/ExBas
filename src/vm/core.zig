@@ -347,7 +347,8 @@ pub const Vm = struct {
 
             .OP_RGET => {
                 const indx = try self.popExpect(.Int);
-                const arr = try self.popExpect(.Array);
+                const arr = try self.pop();
+                if (arr.kind() != .Array and arr.kind() != .String) return error.InvalidDataType;
                 defer {
                     self.release(indx);
                     self.release(arr);
@@ -369,7 +370,8 @@ pub const Vm = struct {
             },
 
             .OP_CGET => {
-                const arr = try self.popExpect(.Array);
+                const arr = try self.pop();
+                if (arr.kind() != .Array and arr.kind() != .String) return error.InvalidDataType;
                 defer self.release(arr);
                 try self.stack.push(try (try arr.at(try self.fetch16(u16))).alloc_copy(self.allocator));
             },

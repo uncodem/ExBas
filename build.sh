@@ -1,8 +1,10 @@
 #!/usr/bin/env sh
 
+rm -rf bin
+
 if [ "$1" = "clean" ]; then
     echo "Cleaning..."
-    rm -rf _build zig-out bin 
+    rm -rf _build zig-out 
 fi
 
 echo "Building compiler..."

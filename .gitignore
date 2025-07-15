@@ -5,3 +5,4 @@ zig-out/
 _build/
 bin/
 test.txt
+*.bas
