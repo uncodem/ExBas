@@ -1,5 +1,6 @@
 (executable
  (public_name bascc)
  (name main)
- (preprocess (pps ppx_deriving.show))
+ (preprocess
+  (pps ppx_deriving.show))
  (modules main parser lexer opcodes emitter checker))

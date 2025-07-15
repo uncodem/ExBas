@@ -25,7 +25,8 @@ type checker_error =
     | DisallowedReturn of Lexer.token_pos
     | DisallowedTypes of node_type list * Lexer.token_pos
     | IncorrectArity of string * Lexer.token_pos
-    | MismatchedFuncArgs of string * node_type list * node_type list * Lexer.token_pos
+    | MismatchedFuncArgs of
+        string * node_type list * node_type list * Lexer.token_pos
     | SyntaxError of string * Lexer.token_pos
 
 type envtype =
@@ -185,15 +186,24 @@ let checker_report err =
     | DisallowedTypes (types, line) ->
         let types = String.concat " " (List.map string_of_node_type types) in
         print_endline
-          ("checker: DisallowedTypes types " ^ types ^ " in line " ^ string_of_int line)
+          ("checker: DisallowedTypes types " ^ types ^ " in line "
+         ^ string_of_int line)
     | IncorrectArity (fname, line) ->
-        print_endline ("checker: IncorrectArity wrong number of arguments in function call for " ^ fname ^ " in line " ^ string_of_int line)
+        print_endline
+          ("checker: IncorrectArity wrong number of arguments in function call \
+            for " ^ fname ^ " in line " ^ string_of_int line)
     | MismatchedFuncArgs (fname, expected, got, line) ->
-        let etypes = String.concat ", " (List.map string_of_node_type expected) in
+        let etypes =
+            String.concat ", " (List.map string_of_node_type expected)
+        in
         let gtypes = String.concat ", " (List.map string_of_node_type got) in
-        Printf.printf "checker: MismatchedFuncArgs in call to %s. Expected (%s), got (%s) in line %d\n" fname etypes gtypes line
+        Printf.printf
+          "checker: MismatchedFuncArgs in call to %s. Expected (%s), got (%s) \
+           in line %d\n"
+          fname etypes gtypes line
     | SyntaxError (name, line) ->
-        print_endline ("checker: SyntaxError. " ^ name ^ " in line " ^ string_of_int line)
+        print_endline
+          ("checker: SyntaxError. " ^ name ^ " in line " ^ string_of_int line)
 
 let typeof_node { kind; _ } = kind
 let nodeof_node { node; _ } = node
@@ -243,7 +253,11 @@ let rec decide_if_any atype btype =
 
 let validate_base state = function
     | Parser.Assign (Parser.Var _, _, _) | Parser.Var _ -> Ok ()
-    | Parser.Assign (Parser.Index _, _, _) | _ -> Error (SyntaxError ("Assignment only to non-array variables allowed in for loop.", state.current_line))
+    | Parser.Assign (Parser.Index _, _, _) | _ ->
+        Error
+          (SyntaxError
+             ( "Assignment only to non-array variables allowed in for loop.",
+               state.current_line ))
 
 let rec annotate_node state node =
     match node with
@@ -256,7 +270,7 @@ let rec annotate_node state node =
         match res with
         | Some (Variable t) -> Ok { kind = t; node }
         | _ -> Error (UndefinedIdentifier (vname, state.current_line)))
-    | Parser.Call _ -> annotate_call state node 
+    | Parser.Call _ -> annotate_call state node
     | Parser.Statement (_, _, line) ->
         state.current_line <- line;
         let* _ = annotate_call state node in
@@ -425,7 +439,7 @@ and annotate_index state node =
           | T_string ->
               Ok { kind = T_int; node }
               (* The VM has no char type, it returns an int for whenever a string is indexed *)
-          | T_any -> Ok { kind = T_any; node } 
+          | T_any -> Ok { kind = T_any; node }
           | _ ->
               Error
                 (ExpectedEither
@@ -511,52 +525,64 @@ and def_func_params state names types =
     | [], [] -> Ok ()
     | n :: ns, t :: ts ->
         let* _ = def_var state n t in
-        def_func_params state ns ts 
-    | _ -> failwith "def_func_params: Mismatched param and type lengths" (* Should be impossible *)
+        def_func_params state ns ts
+    | _ -> failwith "def_func_params: Mismatched param and type lengths"
+(* Should be impossible *)
 
-and validate_func_types state params ret_type = 
+and validate_func_types state params ret_type =
     let func_ret = node_type_of_string ret_type in
-    let param_types = List.map (fun pair -> snd pair |> node_type_of_string) params in
-    let is_valid_paramt = List.for_all (function | None | Some T_none -> false | _ -> true) param_types in
-    if not is_valid_paramt then Error (DisallowedTypes ([T_none], state.current_line))
-    else 
-        match func_ret with
-        | Some t -> Ok (t, List.map Option.get param_types)
-        | None -> Error (InvalidType (ret_type, state.current_line))
+    let param_types =
+        List.map (fun pair -> snd pair |> node_type_of_string) params
+    in
+    let is_valid_paramt =
+        List.for_all
+          (function
+            | None | Some T_none -> false
+            | _ -> true)
+          param_types
+    in
+    if not is_valid_paramt then
+      Error (DisallowedTypes ([ T_none ], state.current_line))
+    else
+      match func_ret with
+      | Some t -> Ok (t, List.map Option.get param_types)
+      | None -> Error (InvalidType (ret_type, state.current_line))
 
 and annotate_funcbody state node vnames vtypes =
-    match node with 
+    match node with
     | Parser.Block stmts ->
         new_scope state;
-        let nested_fdef = 
-            List.exists 
+        let nested_fdef =
+            List.exists
               (function
                 | Parser.FuncDef _ -> true
                 | _ -> false)
               stmts
         in
         if nested_fdef then Error (DisallowedFuncDef state.current_line)
-        else begin
-            (* We don't update in_body here to prevent yield in the top-level function body *)
-            let* _ = def_func_params state vnames vtypes in
-            let* _ = iter_result (annotate_node state) stmts in
-            del_scope state;
-            Ok {kind = T_none; node}
-        end
+        else
+          (* We don't update in_body here to prevent yield in the top-level function body *)
+          let* _ = def_func_params state vnames vtypes in
+          let* _ = iter_result (annotate_node state) stmts in
+          del_scope state;
+          Ok { kind = T_none; node }
     | _ -> assert false
 
 and annotate_funcdef state node =
     match node with
     | Parser.FuncDef (name, params, ret_type, body, pos) ->
         state.current_line <- pos;
-        if Hashtbl.mem state.func_defs name then Error (FuncRedefinition (name, pos))
-        else 
-            let* ftype, param_types = validate_func_types state params ret_type in
-            state.return_type <- Some ftype;
-            let* _ = def_func state name ftype param_types in
-            let* _ = annotate_funcbody state body (List.map fst params) param_types in
-            state.return_type <- None;
-            Ok ({kind = T_none; node})
+        if Hashtbl.mem state.func_defs name then
+          Error (FuncRedefinition (name, pos))
+        else
+          let* ftype, param_types = validate_func_types state params ret_type in
+          state.return_type <- Some ftype;
+          let* _ = def_func state name ftype param_types in
+          let* _ =
+              annotate_funcbody state body (List.map fst params) param_types
+          in
+          state.return_type <- None;
+          Ok { kind = T_none; node }
     | _ -> assert false
 
 and annotate_call state node =
@@ -564,41 +590,34 @@ and annotate_call state node =
     | Parser.Statement (fname, args, _) | Parser.Call (fname, args) ->
         let func = Hashtbl.find_opt state.func_defs fname in
         if Option.is_some func then
-            let func = Option.get func in (
-            match func with
-            | Subroutine (ftype, params) ->
-                if (List.compare_lengths args params) <> 0 then Error (IncorrectArity (fname, state.current_line))
+          let func = Option.get func in
+          match func with
+          | Subroutine (ftype, params) ->
+              if List.compare_lengths args params <> 0 then
+                Error (IncorrectArity (fname, state.current_line))
+              else
+                let* args = iter_result_acc (annotate_node state) args [] in
+                let argtypes = List.map typeof_node args in
+                if List.equal eql_types params argtypes then
+                  Ok { kind = ftype; node }
                 else
-                    let* args = iter_result_acc (annotate_node state) args [] in
-                    let argtypes = List.map typeof_node args in
-                    if List.equal eql_types params argtypes then
-                        Ok {kind = ftype; node}
-                    else Error (MismatchedFuncArgs (fname, params, argtypes, state.current_line))
-            | _ -> assert false)
-        else
-            Error (UndefinedIdentifier (fname, state.current_line))
+                  Error
+                    (MismatchedFuncArgs
+                       (fname, params, argtypes, state.current_line))
+          | _ -> assert false
+        else Error (UndefinedIdentifier (fname, state.current_line))
     | _ -> assert false
 
-let builtins = [
-    ("str2int", T_int, [T_string]);
-    ("str2float", T_float, [T_string]);
-
-    ("int2str", T_string, [T_int]);
-    ("int2float", T_float, [T_int]);
-    
-    ("float2str", T_string, [T_float]);
-    ("float2int", T_int, [T_float]);
-
-    ("any2int", T_int, [T_any]);
-    ("any2float", T_float, [T_any]);
-    ("any2str", T_string, [T_any]);
-
-    ("size", T_any, [T_int]);
-
-    ("print", T_none, [T_any]);
-    ("input", T_string, []);
-    ("any", T_any, [T_any]);
-] 
+let builtins =
+    [
+      ("str2int", T_int, [ T_string ]); ("str2float", T_float, [ T_string ]);
+      ("int2str", T_string, [ T_int ]); ("int2float", T_float, [ T_int ]);
+      ("float2str", T_string, [ T_float ]); ("float2int", T_int, [ T_float ]);
+      ("any2int", T_int, [ T_any ]); ("any2float", T_float, [ T_any ]);
+      ("any2str", T_string, [ T_any ]); ("size", T_any, [ T_int ]);
+      ("print", T_none, [ T_any ]); ("input", T_string, []);
+      ("any", T_any, [ T_any ]);
+    ]
 
 let checker_init ast =
     let* collected = collect_labels ast [] in
@@ -614,5 +633,5 @@ let checker_init ast =
         }
     in
     let aux (name, rtype, params) = def_func state name rtype params in
-    let* _ = iter_result aux builtins in    
+    let* _ = iter_result aux builtins in
     annotate_node state ast
