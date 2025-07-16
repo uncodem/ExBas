@@ -394,27 +394,42 @@ and emit_for state = function
         let counter = state.for_counter in
         state.for_counter <- state.for_counter + 1;
         let vname = get_vname base in
+        let dest_name = gen_label "fordest" counter in
+        let step_name = gen_label "forstep" counter in
+        def_var state dest_name;
+        def_var state step_name;
+        let (destpos, destscope) = Option.get (find_var state.vars dest_name 0) in
+
         let step_node =
             Parser.Assign
               ( Parser.Var vname,
-                Parser.Binary (Parser.Add, Parser.Var vname, step),
+                Parser.Binary (Parser.Add, Parser.Var vname, Parser.Var step_name),
                 None )
         in
         emit_node state base;
-        (* +1 *)
-        emit_val state (LabelDef (gen_label "forcond" counter));
+
         emit_node state dest;
-        (* +1 *)
+        emit_val state (RawOp Opcodes.OP_defvar);
+
+        emit_node state step;
+        emit_val state (RawOp Opcodes.OP_defvar);
+
+        def_var state dest_name;
+
+        emit_val state (LabelDef (gen_label "forcond" counter));
+
+        emit_val state (RawOp Opcodes.OP_pushvar);
+        emit_val state (RawValB destscope);
+        emit_val state (RawValB destpos);
+
         emit_val state (RawOp Opcodes.OP_eql);
-        (* -2 + 1 = -1 *)
         emit_val state (RawOp Opcodes.OP_tjmp);
-        (* -1 *)
         add_effect (-2) state;
         emit_val state (LabelRef (gen_label "forend" counter));
         emit_val state NoEmit;
         emit_node state body;
         emit_node state step_node;
-        (* +1 *)
+
         emit_val state (RawOp Opcodes.OP_jmp);
         emit_val state (LabelRef (gen_label "forcond" counter));
         emit_val state NoEmit;

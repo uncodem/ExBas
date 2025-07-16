@@ -6,3 +6,5 @@ _build/
 bin/
 test.txt
 *.bas
+*.exb
+*.exbs
