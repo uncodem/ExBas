@@ -212,6 +212,7 @@ let rec emit_node state node =
         let depth = List.length indices in
         emit_node state vnode;
         List.iter (emit_node state) indices;
+        add_effect (-1) state;
         if depth = 1 then emit_val state (RawOp Opcodes.OP_rget)
         else (
           emit_val state (RawOp Opcodes.OP_rget_nd);

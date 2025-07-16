@@ -86,6 +86,7 @@ pub fn dumpCode(writer: anytype, program: Program) !void {
                 // Get first byte which is oper byte, and then change operand_count to include those.
                 // The only opcode with this should just be OP_CREATEARRAY_ND
                 operand_count += x * 2;
+                variadic = false;
             }
             try writer.print("{X:02} ", .{x});
             operand_count -= 1;

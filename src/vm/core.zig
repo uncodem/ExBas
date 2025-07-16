@@ -328,6 +328,7 @@ pub const Vm = struct {
             .OP_CREATEARRAY_ND => {
                 const depth = try self.fetch();
                 const sizes = try self.allocator.alloc(u16, depth);
+                defer self.allocator.free(sizes);
                 for (sizes) |*size| {
                     size.* = try self.fetch16(u16);
                 }
@@ -393,6 +394,7 @@ pub const Vm = struct {
                 defer self.allocator.free(indices);
                 for (indices, 0..) |_, i| {
                     const indx_val = try self.popExpect(.Int);
+                    defer self.release(indx_val);
                     const indx_int = indx_val.data.Int;
                     if (indx_int < 0) return error.MalformedCode;
                     indices[depth - 1 - i] = @intCast(indx_int);
@@ -411,6 +413,7 @@ pub const Vm = struct {
                 defer self.allocator.free(indices);
                 for (indices, 0..) |_, i| {
                     const indx_val = try self.popExpect(.Int);
+                    defer self.release(indx_val);
                     const indx_int = indx_val.data.Int;
                     if (indx_int < 0) return error.MalformedCode;
                     indices[depth - 1 - i] = @intCast(indx_int);

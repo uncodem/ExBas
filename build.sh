@@ -17,6 +17,7 @@ cp _build/default/src/compiler/main.exe bin/exbcc
 echo "Building VM..."
 
 zig build -Doptimize=ReleaseSafe
+# zig build
 cp zig-out/bin/exbvm bin/exbvm
 
 echo "Complete..."
