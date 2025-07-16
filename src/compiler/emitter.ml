@@ -163,6 +163,10 @@ let drop_effect state =
       emit_val state (RawOp Opcodes.OP_drop)
     done
 
+let clear_effect state =
+    drop_effect state;
+    zero_effect state
+
 let get_const state v =
     let k = constant_of_node v in
     match Hashtbl.find_opt state.const_pool k with
@@ -254,8 +258,7 @@ and emit_block state = function
         new_scope state;
         let aux x =
             emit_node state x;
-            drop_effect state;
-            zero_effect state
+            clear_effect state
         in
         List.iter aux stmts;
         del_scope state;
@@ -269,8 +272,7 @@ and emit_program state = function
     | Parser.Program stmts ->
         let aux x =
             emit_node state x;
-            drop_effect state;
-            zero_effect state
+            clear_effect state
         in
         List.iter aux stmts;
         emit_val state (RawOp Opcodes.OP_ret)
@@ -278,11 +280,16 @@ and emit_program state = function
 
 and emit_assign state = function
     | Parser.Assign (Parser.Var vname, right, isstmt_opt) ->
-        let pos, count = Option.get (find_var state.vars vname 0) in
-        emit_node state right;
-        if Option.is_none isstmt_opt then emit_val state (RawOp Opcodes.OP_dup)
-        else add_effect (-1) state;
-        emit_val state (RawOp Opcodes.OP_popvar);
+        let pos, count = Option.get (find_var state.vars vname 0) in 
+        emit_node state right; (* +1 *)
+        if Option.is_none isstmt_opt then (
+            emit_val state (RawOp Opcodes.OP_dup); (* +1 *)
+            add_effect (+1) state;
+        )
+        else ();
+
+        add_effect (-1) state;
+        emit_val state (RawOp Opcodes.OP_popvar); (* -1 *)
         emit_val state (RawValB count);
         emit_val state (RawValB pos)
     | Parser.Assign ((Parser.Index _ as left), right, isstmt_opt) ->
@@ -315,19 +322,15 @@ and emit_if state = function
         emit_val state (LabelRef (gen_label "iftrue" counter));
         emit_val state NoEmit;
         emit_node state farm;
-        if Option.is_some pos then begin
-            drop_effect state;
-            zero_effect state
-        end else ();
+        if Option.is_some pos then clear_effect state 
+        else ();
         emit_val state (RawOp Opcodes.OP_jmp);
         emit_val state (LabelRef (gen_label "ifend" counter));
         emit_val state NoEmit;
         emit_val state (LabelDef (gen_label "iftrue" counter));
         emit_node state tarm;
-        if Option.is_some pos then begin
-            drop_effect state;
-            zero_effect state
-        end else ();
+        if Option.is_some pos then clear_effect state 
+        else ();
         emit_val state (LabelDef (gen_label "ifend" counter));
         if Option.is_none pos then zero_effect state else ()
     | Parser.If (cond, tarm, None, _) ->
@@ -340,7 +343,7 @@ and emit_if state = function
         emit_val state (LabelRef (gen_label "ifend" counter));
         emit_val state NoEmit;
         emit_node state tarm;
-        drop_effect state;
+        clear_effect state;
         emit_val state (LabelDef (gen_label "ifend" counter))
         (* We don't check if we zero_effect here since if-exprs always have else arms. *)
     | _ -> assert false
@@ -443,8 +446,7 @@ and emit_funcdef_body state params body =
 
     let aux x =
         emit_node state x;
-        drop_effect state;
-        zero_effect state
+        clear_effect state
     in
 
     let def_params name =
