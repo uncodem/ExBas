@@ -283,6 +283,7 @@ pub const Vm = struct {
                 const old_v = try self.pop();
                 defer self.release(old_v);
                 const new_v = try old_v.cast(self.allocator, targetType);
+                defer new_v.deinit();
 
                 try self.stack.push(try new_v.alloc_copy(self.allocator));
             },

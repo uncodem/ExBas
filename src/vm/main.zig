@@ -15,7 +15,7 @@ fn print_usage(path: []const u8, command: ?[]const u8) void {
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     defer _ = gpa.deinit();
-    defer _ = gpa.detectLeaks();
+//    defer _ = gpa.detectLeaks();
 
     const allocator = gpa.allocator();
 
