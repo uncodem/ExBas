@@ -414,8 +414,6 @@ and emit_for state = function
         emit_node state step;
         emit_val state (RawOp Opcodes.OP_defvar);
 
-        def_var state dest_name;
-
         emit_val state (LabelDef (gen_label "forcond" counter));
 
         emit_val state (RawOp Opcodes.OP_pushvar);
@@ -434,7 +432,7 @@ and emit_for state = function
         emit_val state (LabelRef (gen_label "forcond" counter));
         emit_val state NoEmit;
         emit_val state (LabelDef (gen_label "forend" counter));
-        add_effect (-1) state
+        add_effect (-2) state;
     | _ -> assert false
 
 and emit_call state = function
