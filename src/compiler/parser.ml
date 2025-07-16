@@ -424,18 +424,20 @@ and parse_if_stmt st =
     let* cond, st' = parse_expr st in
     let* then_tok, st2' = expect_then st' in
     let* texpr, st3' = parse_semi_stmt st2' in
+    let* _, st4' = expect_endstmt st3' in
     match then_tok with
     | Lexer.Then pos -> (
-        match peek st3' with
+        match peek st4' with
         | Some (Lexer.Else _) ->
-            let _, st4' = next st3' in
-            let* fexpr, st5' = parse_semi_stmt st4' in
-            Ok (If (cond, texpr, Some fexpr, Some pos), st5')
+            let _, st5' = next st4' in
+            let* fexpr, st6' = parse_semi_stmt st5' in
+            let* _, st7' = expect_endstmt st6' in
+            Ok (If (cond, texpr, Some fexpr, Some pos), st7')
         | Some (Lexer.ElseIf _) ->
-            let _, st4' = next st3' in
-            let* fexpr, st5' = parse_if_stmt st4' in
-            Ok (If (cond, texpr, Some fexpr, Some pos), st5')
-        | _ -> Ok (If (cond, texpr, None, Some pos), st3'))
+            let _, st5' = next st4' in
+            let* fexpr, st6' = parse_if_stmt st5' in
+            Ok (If (cond, texpr, Some fexpr, Some pos), st6')
+        | _ -> Ok (If (cond, texpr, None, Some pos), st4'))
     | _ -> assert false
 
 and parse_param_list_loop st acc =
