@@ -315,11 +315,19 @@ and emit_if state = function
         emit_val state (LabelRef (gen_label "iftrue" counter));
         emit_val state NoEmit;
         emit_node state farm;
+        if Option.is_some pos then begin
+            drop_effect state;
+            zero_effect state
+        end else ();
         emit_val state (RawOp Opcodes.OP_jmp);
         emit_val state (LabelRef (gen_label "ifend" counter));
         emit_val state NoEmit;
         emit_val state (LabelDef (gen_label "iftrue" counter));
         emit_node state tarm;
+        if Option.is_some pos then begin
+            drop_effect state;
+            zero_effect state
+        end else ();
         emit_val state (LabelDef (gen_label "ifend" counter));
         if Option.is_none pos then zero_effect state else ()
     | Parser.If (cond, tarm, None, _) ->
@@ -332,6 +340,7 @@ and emit_if state = function
         emit_val state (LabelRef (gen_label "ifend" counter));
         emit_val state NoEmit;
         emit_node state tarm;
+        drop_effect state;
         emit_val state (LabelDef (gen_label "ifend" counter))
         (* We don't check if we zero_effect here since if-exprs always have else arms. *)
     | _ -> assert false

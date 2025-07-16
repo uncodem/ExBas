@@ -43,7 +43,7 @@ pub fn countOperands(opc: Opcode) !u8 {
         .OP_TCALL,
         => 2,
 
-        .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_AND, .OP_OR, .OP_NOT, .OP_LESS, .OP_EQL, .OP_EQLESS, .OP_EQMORE, .OP_NEQL, .OP_SIZE, .OP_COPY, .OP_STARTSCOPE, .OP_ENDSCOPE, .OP_SWAP, .OP_DUMP, .OP_RET, .OP_DROP, .OP_RSET, .OP_RGET, .OP_DUP, .OP_DEFVAR => 0,
+        .OP_ADD, .OP_SUB, .OP_MUL, .OP_DIV, .OP_AND, .OP_OR, .OP_NOT, .OP_LESS, .OP_EQL, .OP_EQLESS, .OP_EQMORE, .OP_NEQL, .OP_SIZE, .OP_COPY, .OP_STARTSCOPE, .OP_ENDSCOPE, .OP_SWAP, .OP_DUMP, .OP_RET, .OP_DROP, .OP_RSET, .OP_RGET, .OP_DUP, .OP_DEFVAR, .OP_MORE, .OP_MOD => 0,
 
         else => error.InvalidOpcode,
     };
