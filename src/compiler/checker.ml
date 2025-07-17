@@ -617,6 +617,7 @@ let builtins =
       ("any2str", T_string, [ T_any ]); ("size", T_int, [ T_any ]);
       ("print", T_none, [ T_any ]); ("input", T_string, []);
       ("any", T_any, [ T_any ]);
+      ("copy", T_any, [ T_any ]);
     ]
 
 let checker_init ast =

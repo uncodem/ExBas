@@ -15,6 +15,7 @@ type const_value =
 type func_def =
     | Subroutine of string list * emit_me list
     | Intrinsic of emit_me list * int
+    | Empty
 
 type emitter_state = {
     mutable buffer : emit_me list;

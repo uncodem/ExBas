@@ -15,6 +15,7 @@ type const_value =
 type func_def =
     | Subroutine of string list * emit_me list
     | Intrinsic of emit_me list * int
+    | Empty
 
 let intrinsics =
     [
@@ -28,6 +29,11 @@ let intrinsics =
       ("str2int", [ RawOp Opcodes.OP_cast; RawValB 0 ], 0);
       ("float2int", [ RawOp Opcodes.OP_cast; RawValB 0 ], 0); ("any", [], 0);
       ("str2any", [], 0); ("int2any", [], 0); ("float2any", [], 0);
+      ("any2str", [RawOp Opcodes.OP_cast; RawValB 1], 0);
+      ("any2int", [RawOp Opcodes.OP_cast; RawValB 0], 0);
+      ("any2float", [RawOp Opcodes.OP_cast; RawValB 3], 0);
+      ("any2bool", [RawOp Opcodes.OP_cast; RawValB 2], 0);
+      ("copy", [RawOp Opcodes.OP_copy], 1);
     ]
 
 type emitter_state = {
@@ -446,7 +452,7 @@ and emit_call state = function
         | Intrinsic (ops, x) ->
             add_effect x state;
             state.buffer <- List.rev ops @ state.buffer
-        | Subroutine _ ->
+        | Empty | Subroutine _ ->
             emit_val state (RawOp Opcodes.OP_call);
             emit_val state (LabelRef ("@" ^ fname));
             emit_val state NoEmit)
@@ -480,6 +486,7 @@ and emit_funcdef state = function
     | Parser.FuncDef (name, params, _, Parser.Block body, _) ->
         let global_code = state.buffer in
         let param_names = List.map fst params in
+        Hashtbl.add state.func_table name Empty;
         state.buffer <- [];
         emit_val state (LabelDef ("@" ^ name));
         emit_funcdef_body state param_names body;
@@ -493,6 +500,7 @@ let collect_bodies state =
         match entry with
         | Subroutine (_, body) -> acc @ body
         | Intrinsic _ -> acc
+        | Empty -> acc
     in
     Hashtbl.fold aux state.func_table []
 
